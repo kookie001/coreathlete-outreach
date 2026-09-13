@@ -1,0 +1,17 @@
+{
+  "name": "coreathlete-outreach",
+  "version": "2.0.0",
+  "description": "CoreAthlete Founder Outreach CRM & Lead Research OS",
+  "main": "server.js",
+  "scripts": {
+    "build": "echo 'Build OK'",
+    "start": "node server.js",
+    "test": "node test/security_and_api_test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "pg": "^8.13.3",
+    "dotenv": "^16.4.7"
+  },
+  "private": true
+}
