@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>COREATHLETE — Founder Outreach CRM & Lead Research OS</title>
+  <title>COREATHLETE — Coach Prospector & Outreach CRM V2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -15,10 +15,10 @@
   <div id="loginView" class="auth-wrapper">
     <div class="auth-card">
       <div class="brand-badge-auth">
-        <span>⚡</span> FOUNDER OUTREACH OS
+        <span>⚡</span> COACH PROSPECTOR & OUTREACH OS V2
       </div>
       <h1 class="auth-title">COREATHLETE</h1>
-      <p class="auth-subtitle">Private Founder Dashboard</p>
+      <p class="auth-subtitle">Private Founder Outreach CRM & Lead Research Engine</p>
 
       <form id="loginForm" onsubmit="handleLogin(event)">
         <div class="auth-input-group">
@@ -35,8 +35,9 @@
         <button type="submit" class="btn-lime" id="loginBtn">ENTER DASHBOARD</button>
         <div id="authError" class="auth-error"></div>
       </form>
-      <div style="margin-top: 24px; font-size: 11px; color: #475569;">
-        Protected CRM for founder-led sales outreach & coach research.
+      <div style="margin-top: 24px; font-size: 11px; color: #64748b; line-height: 1.5;">
+        Protected CRM for founder-led sales outreach to <strong>Independent Professional Fitness Coaches</strong>.
+        <br><span style="color: #00F0FF;">Encrypted AES-256-GCM Vault</span>
       </div>
     </div>
   </div>
@@ -47,27 +48,29 @@
     <!-- Top Sticky Header -->
     <header class="header-nav">
       <div class="logo-wrap">
-        <span class="logo-badge">CA OS</span>
+        <span class="logo-badge">CA V2</span>
         <div>
           <div class="app-brand-name">COREATHLETE</div>
-          <div class="app-brand-sub">Lead Research & Outreach CRM</div>
+          <div class="app-brand-sub">Coach Prospector & Outreach CRM</div>
         </div>
       </div>
 
       <nav class="nav-tabs">
         <div class="nav-tab active" data-tab="dashboard" onclick="switchMainTab('dashboard')">📊 Dashboard</div>
-        <div class="nav-tab" data-tab="leads" onclick="switchMainTab('leads')">👥 Leads (<span id="tabCountLeads">0</span>)</div>
+        <div class="nav-tab" data-tab="leads" onclick="switchMainTab('leads')">👥 Coaches (<span id="tabCountLeads">0</span>)</div>
+        <div class="nav-tab" data-tab="top20" onclick="switchMainTab('top20')">🔥 Top 20 Hot Prospects</div>
         <div class="nav-tab" data-tab="today" onclick="switchMainTab('today')">⏰ Today's Work (<span id="tabCountToday">0</span>)</div>
-        <div class="nav-tab" data-tab="top" onclick="switchMainTab('top')">🔥 Top 20</div>
-        <div class="nav-tab" data-tab="analytics" onclick="switchMainTab('analytics')">📈 Analytics</div>
-        <div class="nav-tab" data-tab="settings" onclick="switchMainTab('settings')">⚙️ Settings</div>
+        <div class="nav-tab" data-tab="analytics" onclick="switchMainTab('analytics')">📈 Funnel & Stats</div>
       </nav>
 
       <div class="nav-actions">
-        <button class="btn-header-quickadd" onclick="openQuickAddModal()">
-          <span>+</span> QUICK ADD LEAD
+        <button class="btn-discovery-trigger" onclick="openDiscoveryModal()">
+          <span>🔍</span> DISCOVERY ASSISTANT
         </button>
-        <button class="btn-nav-outline" onclick="openSmartPitchModal()">💬 Smart Pitch</button>
+        <button class="btn-header-quickadd" onclick="openQuickAddModal()">
+          <span>+</span> PROSPECT COACH
+        </button>
+        <button class="btn-nav-outline" onclick="openSmartPitchModal()">💬 Coach Pitch</button>
         <button class="btn-nav-outline" onclick="openExportModal()">📤 Export</button>
         <button class="btn-nav-outline" onclick="openImportModal()">📥 Import</button>
         <button class="btn-nav-outline" onclick="handleLogout()" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">Logout</button>
@@ -77,17 +80,17 @@
     <!-- Today's Action Strip -->
     <section class="today-strip" id="todayActionStrip">
       <div class="today-stats">
+        <div class="today-stat-pill" onclick="quickFilter('hotLeads')">
+          <span>🔥 Hot Prospects (8-10):</span>
+          <span class="pill-count pill-count-lime" id="todayHotCount">0</span>
+        </div>
+        <div class="today-stat-pill" onclick="quickFilter('qualifiedCoaches')">
+          <span>⭐ Qualified (6-7):</span>
+          <span class="pill-count pill-count-blue" id="todayQualifiedCount">0</span>
+        </div>
         <div class="today-stat-pill" onclick="quickFilter('followupsToday')">
           <span>⏰ Follow-ups Today:</span>
           <span class="pill-count pill-count-amber" id="todayFollowUpsCount">0</span>
-        </div>
-        <div class="today-stat-pill" onclick="quickFilter('overdue')">
-          <span>⚠️ Overdue:</span>
-          <span class="pill-count pill-count-red" id="todayOverdueCount">0</span>
-        </div>
-        <div class="today-stat-pill" onclick="quickFilter('hotLeads')">
-          <span>🔥 Hot Leads:</span>
-          <span class="pill-count pill-count-lime" id="todayHotCount">0</span>
         </div>
         <div class="today-stat-pill" onclick="quickFilter('notContacted')">
           <span>⏳ New to Contact:</span>
@@ -100,9 +103,9 @@
       </div>
 
       <div class="today-triggers">
-        <button class="btn-action-trigger" onclick="quickFilter('followupsToday')">⚡ Start Follow-ups</button>
-        <button class="btn-action-trigger" onclick="quickFilter('newOutreach')">🚀 Start New Outreach</button>
-        <button class="btn-action-trigger" onclick="quickFilter('hotLeads')">🔥 View Hot Leads</button>
+        <button class="btn-action-trigger" onclick="openDiscoveryModal()">🔍 Launch Multi-Channel Search</button>
+        <button class="btn-action-trigger" onclick="quickFilter('hotLeads')">🔥 Target Top 20 Prospects</button>
+        <button class="btn-action-trigger" onclick="quickFilter('newOutreach')">🚀 Start Coach Outreach</button>
       </div>
     </section>
 
@@ -114,16 +117,32 @@
         
         <!-- Top Level Metric Cards -->
         <div class="metrics-grid">
-          <div class="metric-card" onclick="filterByStatus('all')">
-            <span class="metric-label">Total Leads</span>
+          <div class="metric-card" onclick="filterByTier('all')">
+            <span class="metric-label">Total Evaluated</span>
             <span class="metric-value" id="metric-total">0</span>
+          </div>
+          <div class="metric-card" onclick="filterByTier('HOT PROSPECT')" style="border-color: rgba(210, 255, 0, 0.4); background: rgba(210, 255, 0, 0.04);">
+            <span class="metric-label" style="color: var(--lime);">🔥 Hot Prospects (8–10)</span>
+            <span class="metric-value" id="metric-hot-prospects" style="color: var(--lime);">0</span>
+          </div>
+          <div class="metric-card" onclick="filterByTier('QUALIFIED')" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.04);">
+            <span class="metric-label" style="color: #34d399;">⭐ Qualified Coaches (6–7)</span>
+            <span class="metric-value" id="metric-qualified-coaches" style="color: #34d399;">0</span>
+          </div>
+          <div class="metric-card" onclick="filterByTier('POTENTIAL')">
+            <span class="metric-label">Potential / Research (4–5)</span>
+            <span class="metric-value" id="metric-potential" style="color: #fcd34d;">0</span>
+          </div>
+          <div class="metric-card" onclick="filterByTier('DISQUALIFIED')" style="border-color: rgba(239, 68, 68, 0.2);">
+            <span class="metric-label" style="color: #f87171;">❌ Disqualified (Gyms/Clubs)</span>
+            <span class="metric-value" id="metric-disqualified" style="color: #f87171;">0</span>
           </div>
           <div class="metric-card" onclick="filterByStatus('⏳ Not Contacted')">
             <span class="metric-label">Not Contacted</span>
             <span class="metric-value" id="metric-not-contacted" style="color: #94a3b8;">0</span>
           </div>
           <div class="metric-card" onclick="filterByStatus('📤 Sent')">
-            <span class="metric-label">Contacted</span>
+            <span class="metric-label">DM / Message Sent</span>
             <span class="metric-value" id="metric-contacted" style="color: #38bdf8;">0</span>
           </div>
           <div class="metric-card" onclick="filterByStatus('💬 Replied')">
@@ -131,28 +150,12 @@
             <span class="metric-value" id="metric-replied" style="color: #c084fc;">0</span>
           </div>
           <div class="metric-card" onclick="filterByStatus('⭐ Interested')">
-            <span class="metric-label">Interested</span>
+            <span class="metric-label">Interested in OS</span>
             <span class="metric-value" id="metric-interested" style="color: #fcd34d;">0</span>
           </div>
-          <div class="metric-card" onclick="filterByStatus('🎥 Demo Sent')">
-            <span class="metric-label">Demo Sent</span>
-            <span class="metric-value" id="metric-demo" style="color: #a78bfa;">0</span>
-          </div>
-          <div class="metric-card" onclick="filterByStatus('🔄 Follow Up')">
-            <span class="metric-label">Follow-Up Due</span>
-            <span class="metric-value" id="metric-followup" style="color: #06b6d4;">0</span>
-          </div>
           <div class="metric-card" onclick="filterByStatus('🤝 Trial / Onboarding')">
-            <span class="metric-label">Trial / Onboard</span>
+            <span class="metric-label">Beta Trial Onboarding</span>
             <span class="metric-value" id="metric-trial" style="color: #34d399;">0</span>
-          </div>
-          <div class="metric-card" onclick="filterByStatus('💰 Won / Paid')">
-            <span class="metric-label">Paid / Won</span>
-            <span class="metric-value" id="metric-won" style="color: var(--lime);">0</span>
-          </div>
-          <div class="metric-card" onclick="filterByStatus('🚫 Not Interested')">
-            <span class="metric-label">Not Interested</span>
-            <span class="metric-value" id="metric-not-interested" style="color: #64748b;">0</span>
           </div>
         </div>
 
@@ -160,19 +163,25 @@
         <div class="funnel-container">
           <div class="funnel-header">
             <span class="funnel-title">
-              <span>⚡</span> Founder Outreach Funnel & Conversions
+              <span>⚡</span> Founder Coach Acquisition Funnel
             </span>
-            <span style="font-size: 11px; color: var(--text-dim);">Real-time pipeline progression</span>
+            <span style="font-size: 11px; color: var(--text-dim);">Target: 20 Qualified Coaches / Day → Personalized Adaptation Pitch</span>
           </div>
           <div class="funnel-steps">
             <div class="funnel-step">
-              <div class="funnel-step-name">Total Leads</div>
+              <div class="funnel-step-name">Evaluated</div>
               <div class="funnel-step-count" id="funnel-leads">0</div>
               <div class="funnel-step-rate">100% Base</div>
             </div>
             <span class="funnel-arrow">→</span>
             <div class="funnel-step">
-              <div class="funnel-step-name">Contacted</div>
+              <div class="funnel-step-name">Qualified (6+)</div>
+              <div class="funnel-step-count" id="funnel-qualified">0</div>
+              <div class="funnel-step-rate" id="rate-qualified">0%</div>
+            </div>
+            <span class="funnel-arrow">→</span>
+            <div class="funnel-step">
+              <div class="funnel-step-name">Pitch Sent</div>
               <div class="funnel-step-count" id="funnel-contacted">0</div>
               <div class="funnel-step-rate" id="rate-contacted">0%</div>
             </div>
@@ -189,20 +198,8 @@
               <div class="funnel-step-rate" id="rate-interested">0%</div>
             </div>
             <span class="funnel-arrow">→</span>
-            <div class="funnel-step">
-              <div class="funnel-step-name">Demo Sent</div>
-              <div class="funnel-step-count" id="funnel-demo">0</div>
-              <div class="funnel-step-rate" id="rate-demo">0%</div>
-            </div>
-            <span class="funnel-arrow">→</span>
-            <div class="funnel-step">
-              <div class="funnel-step-name">Trial</div>
-              <div class="funnel-step-count" id="funnel-trial">0</div>
-              <div class="funnel-step-rate" id="rate-trial">0%</div>
-            </div>
-            <span class="funnel-arrow">→</span>
             <div class="funnel-step" style="border-color: rgba(210, 255, 0, 0.4); background: var(--lime-subtle);">
-              <div class="funnel-step-name" style="color: var(--lime);">Paid / Won</div>
+              <div class="funnel-step-name" style="color: var(--lime);">Beta Coach Active</div>
               <div class="funnel-step-count" id="funnel-paid" style="color: var(--lime);">0</div>
               <div class="funnel-step-rate" id="rate-paid">0%</div>
             </div>
@@ -222,85 +219,78 @@
               <input
                 type="text"
                 id="globalSearchInput"
-                placeholder="Search name, business, phone, city, role, instagram, website..."
+                placeholder="Search coach name, niche, workflow signal, handle, software, city..."
                 oninput="handleSearchInput()"
               />
             </div>
 
             <!-- Saved Views Preset Dropdown -->
             <select class="view-preset-dropdown" id="savedViewsSelect" onchange="applySavedView(this.value)">
-              <option value="">📌 Saved Views / Quick Presets</option>
-              <option value="hot_not_contacted">🔥 HOT NOT CONTACTED</option>
-              <option value="delhi_sc">🏋️ Delhi S&C Coaches</option>
-              <option value="ncr_online">💻 NCR Online Coaches</option>
+              <option value="">📌 Quick Filters & Priority Views</option>
+              <option value="top_20_hot">🔥 Top 20 Hot Prospects (Score 8–10)</option>
+              <option value="all_qualified">⭐ All Qualified Coaches (Score 6–10)</option>
+              <option value="sports_performance">🏃 Sports & Performance Coaches</option>
+              <option value="sc_coaches">🏋️ Strength & Conditioning Coaches</option>
+              <option value="hyrox_coaches">⚡ HYROX & Endurance-Strength</option>
+              <option value="concurrent_coaches">🔄 Concurrent / Multi-Discipline</option>
+              <option value="online_strength">💪 Professional Online Strength</option>
+              <option value="has_software">📱 Uses Coaching Software (Trainerize/TrueCoach)</option>
+              <option value="workflow_chaos">📑 Visible WhatsApp/Sheets Chaos</option>
               <option value="followups_today">⏰ Follow-ups Due Today</option>
-              <option value="sports_nutritionists">🥗 Sports Nutritionists</option>
-              <option value="high_score">⭐ 4+ Lead Score</option>
-              <option value="demo_sent">🎥 Demo Sent</option>
-              <option value="interested">🤝 Interested Leads</option>
+              <option value="disqualified">❌ Disqualified Facilities & Gyms</option>
             </select>
 
-            <button class="btn-clear-filters" onclick="clearAllFilters()">✖ Clear Filters</button>
+            <button class="btn-clear-filters" onclick="clearAllFilters()">✖ Clear</button>
           </div>
 
-          <!-- Region Filter Chips -->
-          <div class="filter-pills-row" id="regionFiltersRow">
-            <span class="filter-label-prefix">Region:</span>
-            <span class="filter-pill active" onclick="setFilter('city', 'all')">All Regions</span>
-            <span class="filter-pill" onclick="setFilter('city', 'Delhi NCR')">Delhi NCR</span>
-            <span class="filter-pill" onclick="setFilter('city', 'Gurgaon')">Gurgaon</span>
-            <span class="filter-pill" onclick="setFilter('city', 'Noida')">Noida</span>
-            <span class="filter-pill" onclick="setFilter('city', 'Mumbai')">Mumbai</span>
-            <span class="filter-pill" onclick="setFilter('city', 'Bangalore')">Bangalore</span>
+          <!-- Tier Filter Chips -->
+          <div class="filter-pills-row" id="tierFiltersRow">
+            <span class="filter-label-prefix">Qualification:</span>
+            <span class="filter-pill active" onclick="setFilter('tier', 'all')">All</span>
+            <span class="filter-pill" onclick="setFilter('tier', 'HOT PROSPECT')">🔥 Hot Prospects (8–10)</span>
+            <span class="filter-pill" onclick="setFilter('tier', 'QUALIFIED')">⭐ Qualified (6–7)</span>
+            <span class="filter-pill" onclick="setFilter('tier', 'POTENTIAL')">🟡 Potential (4–5)</span>
+            <span class="filter-pill" onclick="setFilter('tier', 'DISQUALIFIED')">❌ Disqualified</span>
           </div>
 
-          <!-- Priority Filter Chips -->
-          <div class="filter-pills-row" id="priorityFiltersRow">
-            <span class="filter-label-prefix">Priority:</span>
-            <span class="filter-pill active" onclick="setFilter('priority', 'all')">All</span>
-            <span class="filter-pill" onclick="setFilter('priority', 'HOT')">🔥 Hot</span>
-            <span class="filter-pill" onclick="setFilter('priority', 'HIGH')">🟢 High</span>
-            <span class="filter-pill" onclick="setFilter('priority', 'MEDIUM')">🟡 Medium</span>
-            <span class="filter-pill" onclick="setFilter('priority', 'LOW')">⚪ Low</span>
+          <!-- Priority Niche Filter Chips -->
+          <div class="filter-pills-row" id="nicheFiltersRow">
+            <span class="filter-label-prefix">Beta Niche:</span>
+            <span class="filter-pill active" onclick="setFilter('niche', 'all')">All Niches</span>
+            <span class="filter-pill" onclick="setFilter('niche', 'Sports & Performance')">Sports & Performance</span>
+            <span class="filter-pill" onclick="setFilter('niche', 'Strength & Conditioning')">Strength & Conditioning</span>
+            <span class="filter-pill" onclick="setFilter('niche', 'Concurrent / Multi-Discipline')">Concurrent / Multi-Discipline</span>
+            <span class="filter-pill" onclick="setFilter('niche', 'HYROX / Endurance-Strength')">HYROX / Endurance-Strength</span>
+            <span class="filter-pill" onclick="setFilter('niche', 'Professional Online Strength')">Online Strength</span>
+            <span class="filter-pill" onclick="setFilter('niche', 'Body Composition & Fat Loss')">Body Composition</span>
           </div>
 
-          <!-- Role Filter Chips -->
-          <div class="filter-pills-row" id="roleFiltersRow">
-            <span class="filter-label-prefix">Role:</span>
-            <span class="filter-pill active" onclick="setFilter('role', 'all')">All Roles</span>
-            <span class="filter-pill" onclick="setFilter('role', 'Strength & Conditioning Coach')">S&C Coach</span>
-            <span class="filter-pill" onclick="setFilter('role', 'Sports Performance Coach')">Performance Coach</span>
-            <span class="filter-pill" onclick="setFilter('role', 'Online Coach')">Online Coach</span>
-            <span class="filter-pill" onclick="setFilter('role', 'Personal Trainer')">Personal Trainer</span>
-            <span class="filter-pill" onclick="setFilter('role', 'Fitness Coach')">Fitness Coach</span>
-            <span class="filter-pill" onclick="setFilter('role', 'Sports Nutritionist')">Sports Nutritionist</span>
-            <span class="filter-pill" onclick="setFilter('role', 'Dietitian')">Dietitian</span>
-            <span class="filter-pill" onclick="setFilter('role', 'Yoga Teacher')">Yoga Teacher</span>
+          <!-- Channel Filter Chips -->
+          <div class="filter-pills-row" id="channelFiltersRow">
+            <span class="filter-label-prefix">Channel:</span>
+            <span class="filter-pill active" onclick="setFilter('social_channel', 'all')">All Channels</span>
+            <span class="filter-pill" onclick="setFilter('social_channel', 'Instagram')">📸 Instagram</span>
+            <span class="filter-pill" onclick="setFilter('social_channel', 'YouTube')">▶️ YouTube</span>
+            <span class="filter-pill" onclick="setFilter('social_channel', 'LinkedIn')">💼 LinkedIn</span>
+            <span class="filter-pill" onclick="setFilter('social_channel', 'Google Search')">🌐 Google Search</span>
           </div>
         </div>
 
-        <!-- Desktop Leads Table (17 Columns) -->
+        <!-- Desktop Leads Table -->
         <div class="table-card" id="desktopTableWrap">
           <div class="table-responsive">
             <table class="leads-table">
               <thead>
                 <tr>
-                  <th onclick="handleSort('priority')">Priority ↕</th>
-                  <th onclick="handleSort('lead_score')">Score ↕</th>
-                  <th onclick="handleSort('person_name')">Person Name ↕</th>
-                  <th>Business</th>
-                  <th onclick="handleSort('role')">Role</th>
-                  <th onclick="handleSort('city')">City</th>
-                  <th>State</th>
-                  <th>Mobile</th>
-                  <th>WhatsApp</th>
-                  <th>Instagram</th>
-                  <th>Website</th>
-                  <th>System</th>
-                  <th>Clients</th>
+                  <th onclick="handleSort('qualification_score')">10-Pt Score ↕</th>
+                  <th onclick="handleSort('name')">Coach Name & Profile ↕</th>
+                  <th onclick="handleSort('niche')">Priority Niche</th>
+                  <th>City / Country</th>
+                  <th>Observed Workflow Signal</th>
+                  <th>Coaching Software</th>
+                  <th>Application Funnel</th>
                   <th onclick="handleSort('outreach_status')">Status ↕</th>
-                  <th>Last Contact</th>
-                  <th>Next Follow-up</th>
+                  <th>Contact</th>
                   <th style="text-align: right;">Actions</th>
                 </tr>
               </thead>
@@ -318,7 +308,7 @@
 
         <!-- Pagination Bar -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 18px; color: var(--text-dim); font-size: 12px;">
-          <div>Showing <span id="pageCountStart">0</span> - <span id="pageCountEnd">0</span> of <span id="pageCountTotal">0</span> leads</div>
+          <div>Showing <span id="pageCountStart">0</span> - <span id="pageCountEnd">0</span> of <span id="pageCountTotal">0</span> coaches</div>
           <div style="display: flex; gap: 8px;">
             <button class="btn-nav-outline" id="prevPageBtn" onclick="changePage(-1)">← Previous</button>
             <button class="btn-nav-outline" id="nextPageBtn" onclick="changePage(1)">Next →</button>
@@ -329,41 +319,26 @@
 
       <!-- ================= SECTION B: ANALYTICS VIEW ================= -->
       <div id="tabView-analytics" class="tab-content-panel" style="display: none;">
-        <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 16px;">📈 Outreach Analytics & Conversion Funnel</h2>
+        <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 16px;">📈 Lead Generation & Qualification Analytics</h2>
         <div class="form-grid-2" style="margin-bottom: 24px;">
           <div class="drawer-section">
-            <div class="drawer-section-title">Breakdown by City</div>
-            <div id="analyticsCityBreakdown">Loading...</div>
+            <div class="drawer-section-title">Qualification Score Breakdown</div>
+            <div id="analyticsScoreBreakdown">Loading...</div>
           </div>
           <div class="drawer-section">
-            <div class="drawer-section-title">Breakdown by Role</div>
-            <div id="analyticsRoleBreakdown">Loading...</div>
+            <div class="drawer-section-title">Distribution by Priority Niche</div>
+            <div id="analyticsNicheBreakdown">Loading...</div>
           </div>
         </div>
         <div class="form-grid-2">
           <div class="drawer-section">
-            <div class="drawer-section-title">Breakdown by Campaign</div>
-            <div id="analyticsCampaignBreakdown">Loading...</div>
+            <div class="drawer-section-title">Discovery Channels</div>
+            <div id="analyticsChannelBreakdown">Loading...</div>
           </div>
           <div class="drawer-section">
-            <div class="drawer-section-title">Breakdown by Source</div>
-            <div id="analyticsSourceBreakdown">Loading...</div>
+            <div class="drawer-section-title">Observed Coaching Software</div>
+            <div id="analyticsSoftwareBreakdown">Loading...</div>
           </div>
-        </div>
-      </div>
-
-      <!-- ================= SECTION C: SETTINGS VIEW ================= -->
-      <div id="tabView-settings" class="tab-content-panel" style="display: none;">
-        <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 16px;">⚙️ Admin Settings & Workflow Rules</h2>
-        <div class="drawer-section" style="max-width: 700px;">
-          <div class="drawer-section-title">Configured Target Roles</div>
-          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">Exact target coach profiles for CoreAthlete founder-led sales outreach.</p>
-          <div id="settingsRolesList" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
-        </div>
-        <div class="drawer-section" style="max-width: 700px; margin-top: 16px;">
-          <div class="drawer-section-title">Target City Pipeline</div>
-          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">Phase 1, Phase 2, and Phase 3 expansion markets across India.</p>
-          <div id="settingsCitiesList" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
         </div>
       </div>
 
@@ -371,152 +346,329 @@
 
   </div>
 
-  <!-- ================= 3. LEAD DETAIL DRAWER ================= -->
+  <!-- ================= 3. DISCOVERY ASSISTANT MODAL (MULTI-CHANNEL QUERY BUILDER) ================= -->
+  <div class="modal-overlay" id="discoveryModal" onclick="closeModalOnOverlay(event, 'discoveryModal')">
+    <div class="modal-box" style="max-width: 680px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">🔍 Multi-Channel Coach Discovery Assistant</h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+            Generate high-intent search queries with positive coaching signals and strict negative exclusions.
+          </p>
+        </div>
+        <button class="drawer-close-btn" onclick="closeDiscoveryModal()">&times;</button>
+      </div>
+
+      <!-- Channel Selector Tabs -->
+      <div class="discovery-channel-tabs">
+        <button class="channel-tab-btn active" onclick="selectDiscoveryChannel('Instagram')">📸 1. Instagram</button>
+        <button class="channel-tab-btn" onclick="selectDiscoveryChannel('YouTube')">▶️ 2. YouTube</button>
+        <button class="channel-tab-btn" onclick="selectDiscoveryChannel('LinkedIn')">💼 3. LinkedIn</button>
+        <button class="channel-tab-btn" onclick="selectDiscoveryChannel('Google')">🌐 4. Google Search</button>
+      </div>
+
+      <!-- Discovery Options Grid -->
+      <div class="form-grid-2" style="margin-top: 16px;">
+        <div class="form-group">
+          <label>Target Priority Niche</label>
+          <select id="discoveryNicheSelect" class="input-field" onchange="updateDiscoveryQuery()">
+            <option value="Sports & Performance">1. Sports & Performance Coaches</option>
+            <option value="Strength & Conditioning" selected>2. Strength & Conditioning (S&C) Coaches</option>
+            <option value="Concurrent / Multi-Discipline">3. Concurrent / Multi-Discipline Coaches</option>
+            <option value="HYROX / Endurance-Strength">4. HYROX / Endurance-Strength Coaches</option>
+            <option value="Professional Online Strength">5. Professional Online Strength Coaches</option>
+            <option value="Body Composition & Fat Loss">6. Body Composition & Recomp Coaches</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Target Market / Location</label>
+          <select id="discoveryLocationSelect" class="input-field" onchange="updateDiscoveryQuery()">
+            <option value="India">All India</option>
+            <option value="Delhi NCR">Delhi NCR</option>
+            <option value="Mumbai">Mumbai</option>
+            <option value="Bengaluru">Bengaluru</option>
+            <option value="Chandigarh">Chandigarh</option>
+            <option value="Pune">Pune</option>
+            <option value="Hyderabad">Hyderabad</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Generated Query Box -->
+      <div class="form-group" style="margin-top: 10px;">
+        <label style="display: flex; justify-content: space-between;">
+          <span>Generated Boolean Search Query:</span>
+          <span style="color: var(--lime); font-size: 11px;">Excludes: -gym -studio -club -facility</span>
+        </label>
+        <textarea id="discoveryQueryText" class="form-textarea" style="height: 100px; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #07090e;" readonly></textarea>
+      </div>
+
+      <!-- Rules & Best Practices Reminder -->
+      <div class="discovery-rules-card">
+        <div style="font-weight: 700; color: #38bdf8; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">
+          💡 Research Signals To Look For
+        </div>
+        <ul style="margin: 0; padding-left: 18px; font-size: 11px; color: var(--text-secondary); line-height: 1.6;">
+          <li>Look for personal brand identity (name), "DM to apply", "weekly check-ins", "client transformations".</li>
+          <li>Identify coaching software screenshots: <strong>TrueCoach, Trainerize, bTrainr, CoachRx, Everfit</strong>.</li>
+          <li>Look for workflow chaos signals: managing check-ins over Google Sheets & WhatsApp audio.</li>
+          <li><strong>Reject immediately:</strong> commercial gyms, group fitness studios, facility employees, generic ebook sellers.</li>
+        </ul>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+        <button class="btn-nav-outline" onclick="copyDiscoveryQuery()">📋 Copy Search Query</button>
+        <button class="btn-lime" style="width: auto; padding: 10px 22px;" onclick="launchDiscoverySearch()">↗ Launch Search in New Tab</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 4. QUICK ADD / PROSPECT COACH MODAL ================= -->
+  <div class="modal-overlay" id="quickAddModal" onclick="closeModalOnOverlay(event, 'quickAddModal')">
+    <div class="modal-box" style="max-width: 720px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">⚡ Quick Prospect & 10-Point Qualification</h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+            Evaluate candidate profile against beta ICP criteria. Clamped score: 0 to 10 points.
+          </p>
+        </div>
+        <button class="drawer-close-btn" onclick="closeQuickAddModal()">&times;</button>
+      </div>
+
+      <form id="quickAddForm" onsubmit="handleQuickAddSubmit(event)">
+        
+        <!-- Basic Identity -->
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>Coach Full Name *</label>
+            <input type="text" id="quickInputName" class="input-field" placeholder="e.g. Coach Name" required />
+          </div>
+          <div class="form-group">
+            <label>Priority Coaching Niche *</label>
+            <select id="quickInputNiche" class="input-field" required>
+              <option value="Sports & Performance">1. Sports & Performance</option>
+              <option value="Strength & Conditioning">2. Strength & Conditioning</option>
+              <option value="Concurrent / Multi-Discipline">3. Concurrent / Multi-Discipline</option>
+              <option value="HYROX / Endurance-Strength">4. HYROX / Endurance-Strength</option>
+              <option value="Professional Online Strength">5. Professional Online Strength</option>
+              <option value="Body Composition & Fat Loss">6. Body Composition & Fat Loss</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Discovery Channel *</label>
+            <select id="quickInputChannel" class="input-field" required>
+              <option value="Instagram">Instagram</option>
+              <option value="YouTube">YouTube</option>
+              <option value="LinkedIn">LinkedIn</option>
+              <option value="Google Search">Google Search</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Social Handle / Profile URL *</label>
+            <input type="text" id="quickInputHandle" class="input-field" placeholder="@coach_handle or URL" required />
+          </div>
+          <div class="form-group">
+            <label>City / Country</label>
+            <input type="text" id="quickInputCity" class="input-field" placeholder="e.g. Bengaluru, India (or Unknown)" value="India" />
+          </div>
+          <div class="form-group">
+            <label>Mobile / WhatsApp Number</label>
+            <input type="text" id="quickInputMobile" class="input-field" placeholder="Public business number (Optional)" />
+          </div>
+          <div class="form-group">
+            <label>Observed Coaching Software</label>
+            <select id="quickInputSoftware" class="input-field" onchange="calculateModalLiveScore()">
+              <option value="None">None / Not Visible</option>
+              <option value="Trainerize">Trainerize</option>
+              <option value="TrueCoach">TrueCoach</option>
+              <option value="CoachRx">CoachRx</option>
+              <option value="Everfit">Everfit</option>
+              <option value="bTrainr">bTrainr</option>
+              <option value="Google Sheets">Google Sheets</option>
+              <option value="Unknown">Unknown</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Application Funnel</label>
+            <select id="quickInputFunnel" class="input-field" onchange="calculateModalLiveScore()">
+              <option value="None">None</option>
+              <option value="Typeform in bio">Typeform in bio</option>
+              <option value="Calendly call link">Calendly call link</option>
+              <option value="Google Form">Google Form</option>
+              <option value="Linktree intake form">Linktree intake form</option>
+              <option value="Website form">Website form</option>
+              <option value="Unknown">Unknown</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Observed Workflow Signal (Operational Complexity Evidence)</label>
+          <input type="text" id="quickInputSignal" class="input-field" placeholder="e.g. Complains about Sunday check-in sheet backlog; TrueCoach client logs in story highlights" oninput="calculateModalLiveScore()" />
+        </div>
+
+        <!-- 10-Point Qualification Checklist -->
+        <div class="qualification-checklist-card">
+          <div class="checklist-header">
+            <span style="font-weight: 800; font-size: 11px; text-transform: uppercase; color: var(--lime);">
+              ⚡ 10-Point Qualification Checklist
+            </span>
+            <div id="modalScoreDisplay" class="score-display-badge">
+              Score: <span id="modalScoreVal">0</span>/10 (<span id="modalTierVal">POTENTIAL</span>)
+            </div>
+          </div>
+
+          <div class="checklist-items-grid">
+            <label class="check-item">
+              <input type="checkbox" id="checkBrand" checked onchange="calculateModalLiveScore()">
+              <span><strong>+2</strong> Personal brand / independent coach identity</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="checkOnline" checked onchange="calculateModalLiveScore()">
+              <span><strong>+2</strong> Online / custom coaching clearly offered</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="checkTestimonials" checked onchange="calculateModalLiveScore()">
+              <span><strong>+2</strong> Real client testimonials/results with names</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="checkSoftware" onchange="calculateModalLiveScore()">
+              <span><strong>+2</strong> Coaching software visible (Trainerize/TrueCoach/etc.)</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="checkModalities" checked onchange="calculateModalLiveScore()">
+              <span><strong>+1</strong> Programming complexity / multiple modalities</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="checkFunnel" onchange="calculateModalLiveScore()">
+              <span><strong>+1</strong> Own application / payment funnel</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="checkChaos" checked onchange="calculateModalLiveScore()">
+              <span><strong>+2</strong> Visible WhatsApp/Sheets check-in workflow chaos</span>
+            </label>
+            <label class="check-item check-item-danger">
+              <input type="checkbox" id="checkGym" onchange="calculateModalLiveScore()">
+              <span><strong style="color: #ef4444;">-4</strong> Commercial Gym / Fitness Studio identity</span>
+            </label>
+            <label class="check-item check-item-danger">
+              <input type="checkbox" id="checkInfluencer" onchange="calculateModalLiveScore()">
+              <span><strong style="color: #ef4444;">-3</strong> Generic Influencer / Affiliate / Ebook model</span>
+            </label>
+          </div>
+
+          <div id="modalDisqualifyWarning" style="display: none; margin-top: 10px; color: #fca5a5; font-size: 11px; background: rgba(239, 68, 68, 0.15); padding: 8px 12px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.4);">
+            ⚠️ Negative filter triggered: Profile represents a commercial facility or generic creator rather than an independent coach.
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+          <button type="button" class="btn-nav-outline" onclick="closeQuickAddModal()">Cancel</button>
+          <button type="submit" class="btn-lime" style="width: auto; padding: 10px 24px;" id="saveQuickLeadBtn">SAVE QUALIFIED COACH</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= 5. LEAD DETAIL DRAWER (360° COACH DOSSIER) ================= -->
   <div class="drawer-overlay" id="leadDetailDrawer" onclick="closeDrawerOnOverlay(event)">
     <div class="drawer-panel" id="drawerPanel">
       <div class="drawer-header">
         <div>
           <div class="drawer-lead-name" id="drawerPersonName">Coach Name</div>
-          <div style="font-size: 12px; color: var(--text-dim);" id="drawerBizRole">Role • City</div>
+          <div style="font-size: 12px; color: var(--text-dim);" id="drawerBizRole">Niche • Channel • City</div>
         </div>
         <button class="drawer-close-btn" onclick="closeLeadDrawer()">&times;</button>
       </div>
 
-      <!-- Drawer Quick Actions -->
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
-        <a id="drawerCallBtn" href="#" class="btn-tbl-action" style="justify-content: center; padding: 10px;">📞 Call</a>
-        <a id="drawerWaBtn" href="#" target="_blank" class="btn-tbl-action btn-tbl-wa" style="justify-content: center; padding: 10px;">💬 WhatsApp</a>
-        <button onclick="copyDrawerPhone()" class="btn-tbl-action" style="justify-content: center; padding: 10px;">📋 Copy Number</button>
+      <!-- Qualification Score Header Strip -->
+      <div class="drawer-score-strip" id="drawerScoreStrip">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="score-large-badge" id="drawerScoreLarge">10/10</div>
+          <div>
+            <div style="font-size: 13px; font-weight: 800;" id="drawerTierText">⭐⭐⭐ HOT PROSPECT</div>
+            <div style="font-size: 11px; color: var(--text-dim);" id="drawerReasonText">High operational complexity</div>
+          </div>
+        </div>
+        <button class="btn-nav-outline" onclick="openSmartPitchModal()" style="font-size: 11px; padding: 6px 12px;">💬 Coach Pitch</button>
       </div>
 
-      <!-- Identity & Contact -->
+      <!-- Drawer Quick Actions -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px;">
+        <a id="drawerSocialBtn" href="#" target="_blank" class="btn-tbl-action btn-tbl-ig" style="justify-content: center; padding: 10px;">📸 View Profile</a>
+        <a id="drawerWaBtn" href="#" target="_blank" class="btn-tbl-action btn-tbl-wa" style="justify-content: center; padding: 10px;">💬 WhatsApp</a>
+        <button onclick="copyDrawerPhone()" class="btn-tbl-action" style="justify-content: center; padding: 10px;">📋 Copy Contact</button>
+      </div>
+
+      <!-- Identity & Profile -->
       <div class="drawer-section">
-        <div class="drawer-section-title">Identity & Contact</div>
+        <div class="drawer-section-title">Coach Profile</div>
         <div class="form-grid-2">
           <div class="form-group">
-            <label>Person Name</label>
+            <label>Coach Full Name</label>
             <input type="text" id="drawerInputName" class="input-field" />
           </div>
           <div class="form-group">
-            <label>Business / Brand Name</label>
-            <input type="text" id="drawerInputBiz" class="input-field" />
+            <label>Priority Coaching Niche</label>
+            <select id="drawerInputNiche" class="input-field">
+              <option value="Sports & Performance">Sports & Performance</option>
+              <option value="Strength & Conditioning">Strength & Conditioning</option>
+              <option value="Concurrent / Multi-Discipline">Concurrent / Multi-Discipline</option>
+              <option value="HYROX / Endurance-Strength">HYROX / Endurance-Strength</option>
+              <option value="Professional Online Strength">Professional Online Strength</option>
+              <option value="Body Composition & Fat Loss">Body Composition & Fat Loss</option>
+            </select>
           </div>
           <div class="form-group">
-            <label>Primary Role</label>
-            <select id="drawerInputRole" class="input-field"></select>
+            <label>Discovery Channel</label>
+            <input type="text" id="drawerInputChannel" class="input-field" />
           </div>
           <div class="form-group">
-            <label>City</label>
+            <label>Handle / Profile URL</label>
+            <input type="text" id="drawerInputHandle" class="input-field" />
+          </div>
+          <div class="form-group">
+            <label>City / Country</label>
             <input type="text" id="drawerInputCity" class="input-field" />
           </div>
           <div class="form-group">
-            <label>Mobile Number</label>
+            <label>Contact Mobile / WhatsApp</label>
             <input type="text" id="drawerInputMobile" class="input-field" />
           </div>
-          <div class="form-group">
-            <label>Email Address</label>
-            <input type="email" id="drawerInputEmail" class="input-field" placeholder="Optional" />
-          </div>
         </div>
       </div>
 
-      <!-- Online Presence -->
+      <!-- Operational Workflow & Software -->
       <div class="drawer-section">
-        <div class="drawer-section-title">Online Presence</div>
+        <div class="drawer-section-title">Operational Workflow & Complexity</div>
         <div class="form-grid-2">
           <div class="form-group">
-            <label>Instagram Handle / URL</label>
-            <input type="text" id="drawerInputIg" class="input-field" placeholder="@coach_handle" />
+            <label>Observed Coaching Software</label>
+            <input type="text" id="drawerInputSoftware" class="input-field" placeholder="Trainerize, TrueCoach, Sheets, etc." />
           </div>
           <div class="form-group">
-            <label>Website URL</label>
-            <input type="url" id="drawerInputWeb" class="input-field" placeholder="https://" />
+            <label>Application Funnel</label>
+            <input type="text" id="drawerInputFunnel" class="input-field" placeholder="Typeform, Calendly, Bio link, etc." />
           </div>
         </div>
         <div class="form-group">
-          <label>Google Maps URL</label>
-          <input type="url" id="drawerInputMaps" class="input-field" placeholder="Google maps link" />
+          <label>Observed Workflow Signal</label>
+          <textarea id="drawerInputSignal" class="form-textarea" style="height: 60px;"></textarea>
         </div>
       </div>
 
-      <!-- Coaching Profile & Workflow -->
+      <!-- 10-Point Score Signals Editor -->
       <div class="drawer-section">
-        <div class="drawer-section-title">Coaching Profile & Workflow</div>
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label>Online Coaching</label>
-            <select id="drawerInputOnline" class="input-field">
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Active Clients / Athletes</label>
-            <select id="drawerInputClients" class="input-field">
-              <option value="Unknown">Unknown</option>
-              <option value="1-3">1–3</option>
-              <option value="4-10">4–10</option>
-              <option value="11-20">11–20</option>
-              <option value="21-50">21–50</option>
-              <option value="50+">50+</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Current System</label>
-            <select id="drawerInputSystem" class="input-field">
-              <option value="WhatsApp">WhatsApp</option>
-              <option value="Google Sheets">Google Sheets</option>
-              <option value="Excel">Excel</option>
-              <option value="PDF">PDF</option>
-              <option value="Trainerize">Trainerize</option>
-              <option value="TrueCoach">TrueCoach</option>
-              <option value="Everfit">Everfit</option>
-              <option value="Other Software">Other Software</option>
-              <option value="Unknown">Unknown</option>
-            </select>
-          </div>
+        <div class="drawer-section-title">10-Point Qualification Checklist</div>
+        <div class="checklist-items-grid" id="drawerChecklistContainer">
+          <!-- Populated dynamically -->
         </div>
       </div>
 
-      <!-- Qualification & Scoring -->
+      <!-- Outreach & Pipeline -->
       <div class="drawer-section">
-        <div class="drawer-section-title">Qualification & Scoring</div>
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label>Lead Score (0–5)</label>
-            <select id="drawerInputScore" class="input-field">
-              <option value="5">5 / 5 (HOT)</option>
-              <option value="4">4 / 5 (HIGH)</option>
-              <option value="3">3 / 5 (MEDIUM)</option>
-              <option value="2">2 / 5 (LOW)</option>
-              <option value="1">1 / 5 (LOW)</option>
-              <option value="0">0 / 5 (SKIP)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Priority</label>
-            <select id="drawerInputPriority" class="input-field">
-              <option value="HOT">🔥 Hot</option>
-              <option value="HIGH">🟢 High</option>
-              <option value="MEDIUM">🟡 Medium</option>
-              <option value="LOW">⚪ Low</option>
-              <option value="SKIP">🚫 Skip</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Why is this lead good?</label>
-          <input type="text" id="drawerInputWhyGood" class="input-field" placeholder="e.g. Trains 20+ cricket athletes with personalized strength blocks." />
-        </div>
-        <div class="form-group">
-          <label>Qualification Notes</label>
-          <textarea id="drawerInputQualNotes" class="form-textarea" placeholder="Research findings, coaching methodology, athlete level..."></textarea>
-        </div>
-      </div>
-
-      <!-- Outreach & Follow-up -->
-      <div class="drawer-section">
-        <div class="drawer-section-title">Outreach & Follow-up</div>
+        <div class="drawer-section-title">Outreach & Pipeline Progression</div>
         <div class="form-grid-2">
           <div class="form-group">
             <label>Outreach Status</label>
@@ -526,28 +678,10 @@
             <label>Next Follow-Up Date</label>
             <input type="date" id="drawerInputNextFollowUp" class="input-field" />
           </div>
-          <div class="form-group">
-            <label>Call Outcome</label>
-            <select id="drawerInputCallOutcome" class="input-field">
-              <option value="">None</option>
-              <option value="Connected">Connected</option>
-              <option value="Demo Requested">Demo Requested</option>
-              <option value="Interested">Interested</option>
-              <option value="Call Back">Call Back</option>
-              <option value="Busy">Busy</option>
-              <option value="No Answer">No Answer</option>
-              <option value="Not Interested">Not Interested</option>
-              <option value="Wrong Number">Wrong Number</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Last Contact</label>
-            <input type="text" id="drawerLastContactDisplay" class="input-field" readonly style="color: var(--text-dim);" />
-          </div>
         </div>
         <div class="form-group">
-          <label>Call / Meeting Notes</label>
-          <textarea id="drawerInputCallNotes" class="form-textarea" placeholder="Outcome details, objections, pricing discussion..."></textarea>
+          <label>Outreach & Conversation Notes</label>
+          <textarea id="drawerInputCallNotes" class="form-textarea" placeholder="Response details, workflow friction discussed, demo reactions..."></textarea>
         </div>
       </div>
 
@@ -555,7 +689,7 @@
       <div class="drawer-section">
         <div class="drawer-section-title">Activity Timeline</div>
         <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <input type="text" id="drawerNewTimelineAction" class="input-field" placeholder="Log action (e.g. Call Attempted, Demo Sent...)" />
+          <input type="text" id="drawerNewTimelineAction" class="input-field" placeholder="Log action (e.g. DM Sent, Voice Note Replied, Demo Booked...)" />
           <button class="btn-nav-outline" onclick="handleAddTimelineEvent()">Log</button>
         </div>
         <div class="timeline-list" id="drawerTimelineList"></div>
@@ -563,7 +697,7 @@
 
       <!-- Drawer Save / Delete Action -->
       <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px;">
-        <button class="btn-nav-outline" onclick="handleDeleteDrawerLead()" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">Delete Lead</button>
+        <button class="btn-nav-outline" onclick="handleDeleteDrawerLead()" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">Delete Prospect</button>
         <div style="display: flex; gap: 10px;">
           <button class="btn-nav-outline" onclick="closeLeadDrawer()">Cancel</button>
           <button class="btn-lime" style="width: auto; padding: 10px 24px;" onclick="saveLeadFromDrawer()">Save Changes</button>
@@ -573,98 +707,31 @@
     </div>
   </div>
 
-  <!-- ================= 4. QUICK ADD MODAL (<10 FIELDS FOR MAPS RESEARCH) ================= -->
-  <div class="modal-overlay" id="quickAddModal" onclick="closeModalOnOverlay(event, 'quickAddModal')">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 class="modal-title">⚡ Quick Capture Lead (Google Maps)</h3>
-        <button class="drawer-close-btn" onclick="closeQuickAddModal()">&times;</button>
-      </div>
-
-      <!-- Duplicate Alert Banner -->
-      <div id="quickAddDupAlert" style="display: none; background: var(--danger-bg); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-sm); padding: 10px 14px; color: #fca5a5; font-size: 12px; margin-bottom: 14px;"></div>
-
-      <form id="quickAddForm" onsubmit="handleQuickAddSubmit(event)">
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label>Person Name *</label>
-            <input type="text" id="quickInputName" class="input-field" placeholder="Coach / Specialist Name" required />
-          </div>
-          <div class="form-group">
-            <label>Business / Gym Name</label>
-            <input type="text" id="quickInputBiz" class="input-field" placeholder="Brand / Studio name" />
-          </div>
-          <div class="form-group">
-            <label>Role / Niche *</label>
-            <select id="quickInputRole" class="input-field" required></select>
-          </div>
-          <div class="form-group">
-            <label>City *</label>
-            <input type="text" id="quickInputCity" class="input-field" value="Delhi NCR" required />
-          </div>
-          <div class="form-group">
-            <label>Mobile Number *</label>
-            <input type="text" id="quickInputMobile" class="input-field" placeholder="+91 98765 43210" required />
-          </div>
-          <div class="form-group">
-            <label>State</label>
-            <input type="text" id="quickInputState" class="input-field" value="Delhi" />
-          </div>
-          <div class="form-group">
-            <label>Instagram Handle</label>
-            <input type="text" id="quickInputIg" class="input-field" placeholder="@handle or URL" />
-          </div>
-          <div class="form-group">
-            <label>Website URL</label>
-            <input type="url" id="quickInputWeb" class="input-field" placeholder="https://" />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Google Maps URL</label>
-          <input type="url" id="quickInputMaps" class="input-field" placeholder="Paste maps share link..." />
-        </div>
-
-        <!-- Research Checklist -->
-        <div style="background: #080c14; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px;">
-          <div style="font-size: 11px; font-weight: 800; color: var(--lime); text-transform: uppercase; margin-bottom: 6px;">Research Checklist</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; color: var(--text-secondary);">
-            <label><input type="checkbox" id="checkAthlete" checked> Works with athletes</label>
-            <label><input type="checkbox" id="checkOnline"> Offers online coaching</label>
-            <label><input type="checkbox" id="checkCustom" checked> Custom programming</label>
-            <label><input type="checkbox" id="checkMultiple"> Multiple clients</label>
-          </div>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 10px;">
-          <button type="button" class="btn-nav-outline" onclick="closeQuickAddModal()">Cancel</button>
-          <button type="submit" class="btn-lime" style="width: auto; padding: 10px 24px;" id="saveQuickLeadBtn">SAVE LEAD</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ================= 5. SMART OUTREACH PITCH MODAL ================= -->
+  <!-- ================= 6. SMART OUTREACH PITCH MODAL ================= -->
   <div class="modal-overlay" id="smartPitchModal" onclick="closeModalOnOverlay(event, 'smartPitchModal')">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width: 620px;">
       <div class="modal-header">
-        <h3 class="modal-title">💬 Smart Role-Based Outreach Pitch</h3>
+        <div>
+          <h3 class="modal-title">💬 CoreAthlete Coach OS Adaptation Pitch</h3>
+          <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+            Value proposition: Athlete Brain → Execution → Signals → Coach Review → Continuous Adaptation.
+          </p>
+        </div>
         <button class="drawer-close-btn" onclick="closeSmartPitchModal()">&times;</button>
       </div>
       <div class="form-group">
-        <label>Select Coach Role Template</label>
+        <label>Pitch Angle & Target Pain Point</label>
         <select id="pitchTemplateSelect" class="input-field" onchange="generatePitchText()">
-          <option value="sc">Strength & Conditioning Coach</option>
-          <option value="online">Online Fitness Coach</option>
-          <option value="strength">Strength Coach / Powerlifting</option>
-          <option value="combat">Combat Sports Coach (MMA/Boxing)</option>
-          <option value="endurance">Endurance / Running Coach</option>
-          <option value="nutritionist">Sports Dietitian / Nutritionist</option>
+          <option value="adaptation_chaos">1. The Check-in & Spreadsheet Chaos Angle (High Complexity)</option>
+          <option value="sc_athletes">2. S&C & Performance Athletes (Dual-Block Programming)</option>
+          <option value="hyrox_endurance">3. HYROX / Multi-Discipline (Pacing + Strength Load)</option>
+          <option value="trainerize_migration">4. Software Friction (Replacing Trainerize / TrueCoach Clutter)</option>
+          <option value="direct_founder">5. Direct Founder-to-Coach Beta Invitation</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Personalized Pitch Text</label>
-        <textarea id="smartPitchText" class="form-textarea" style="height: 180px;"></textarea>
+        <label>Personalized Pitch Copy (Ready to DM/WhatsApp)</label>
+        <textarea id="smartPitchText" class="form-textarea" style="height: 180px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; line-height: 1.5;"></textarea>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
         <button class="btn-nav-outline" onclick="closeSmartPitchModal()">Close</button>
@@ -673,43 +740,42 @@
     </div>
   </div>
 
-  <!-- ================= 6. EXPORT MODAL ================= -->
+  <!-- ================= 7. EXPORT MODAL ================= -->
   <div class="modal-overlay" id="exportModal" onclick="closeModalOnOverlay(event, 'exportModal')">
     <div class="modal-box" style="max-width: 440px;">
       <div class="modal-header">
-        <h3 class="modal-title">📤 Export Leads Data</h3>
+        <h3 class="modal-title">📤 Export Coaches Data</h3>
         <button class="drawer-close-btn" onclick="closeExportModal()">&times;</button>
       </div>
-      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">Download structured leads data in clean CSV format.</p>
+      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">Download structured coach research data in CSV format.</p>
       <div style="display: flex; flex-direction: column; gap: 10px;">
-        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('all')">📑 Export All Leads</button>
-        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('filtered')">🔍 Export Current Filtered Leads</button>
-        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('hot')">🔥 Export Hot Leads Only</button>
-        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('followups')">⏰ Export Follow-ups Only</button>
-        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('interested')">⭐ Export Interested Leads Only</button>
+        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('hot')">🔥 Export Top 20 Hot Prospects Only</button>
+        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('qualified')">⭐ Export All Qualified Coaches (6–10)</button>
+        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('filtered')">🔍 Export Current Filtered View</button>
+        <button class="btn-nav-outline" style="text-align: left; padding: 12px;" onclick="triggerExport('all')">📑 Export All Evaluated Candidates</button>
       </div>
     </div>
   </div>
 
-  <!-- ================= 7. IMPORT MODAL ================= -->
+  <!-- ================= 8. IMPORT MODAL ================= -->
   <div class="modal-overlay" id="importModal" onclick="closeModalOnOverlay(event, 'importModal')">
     <div class="modal-box">
       <div class="modal-header">
-        <h3 class="modal-title">📥 Import Leads (CSV)</h3>
+        <h3 class="modal-title">📥 Import Coach Candidates (CSV)</h3>
         <button class="drawer-close-btn" onclick="closeImportModal()">&times;</button>
       </div>
       <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 14px;">
-        Paste raw CSV text or upload CSV. Duplicate phone numbers and Instagram handles will be automatically detected.
+        Paste raw CSV text. Profiles will be evaluated through the 10-point scoring engine.
       </p>
       <div class="form-group">
-        <label>Paste CSV Content (with headers: Person Name, Business, Role, City, Mobile...)</label>
-        <textarea id="importCsvText" class="form-textarea" style="height: 140px;" placeholder="Person Name,Role,City,Mobile..."></textarea>
+        <label>Paste CSV Content (Headers: Name, Niche, Channel, Handle, City, Software...)</label>
+        <textarea id="importCsvText" class="form-textarea" style="height: 140px;" placeholder="Name,Niche,Social Channel,Handle,City..."></textarea>
       </div>
       <div id="importPreviewSummary" style="display: none; background: #080c14; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-size: 12px; margin-bottom: 14px;"></div>
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
         <button class="btn-nav-outline" onclick="closeImportModal()">Cancel</button>
         <button class="btn-nav-outline" onclick="handleImportPreview()">Check Duplicates</button>
-        <button class="btn-lime" style="width: auto; padding: 10px 20px;" onclick="handleImportCommit()">Import Valid Leads</button>
+        <button class="btn-lime" style="width: auto; padding: 10px 20px;" onclick="handleImportCommit()">Import Valid Coaches</button>
       </div>
     </div>
   </div>

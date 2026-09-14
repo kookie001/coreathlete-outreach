@@ -1,6 +1,7 @@
 /**
- * COREATHLETE — Founder Outreach CRM & Lead Research OS
+ * COREATHLETE — Coach Prospector & Outreach CRM V2
  * Client-Side Private OS with AES-256-GCM Vault Decryption
+ * Built for Founder-led Outreach to Independent Professional Fitness Coaches
  */
 
 // ================= GLOBAL APPLICATION STATE =================
@@ -11,16 +12,16 @@ const state = {
   currentLead: null,
   activeTab: 'dashboard',
   searchQuery: '',
+  discoveryChannel: 'Instagram',
   filters: {
-    city: 'all',
-    role: 'all',
+    tier: 'all',
+    niche: 'all',
+    social_channel: 'all',
     status: 'all',
     priority: 'all',
-    score: 'all',
-    source: 'all',
     quick: ''
   },
-  sortField: 'lead_score',
+  sortField: 'qualification_score',
   sortAsc: false,
   pagination: {
     page: 1,
@@ -28,54 +29,39 @@ const state = {
     total: 0
   },
   settings: {
-    roles: [
-      'Strength & Conditioning Coach',
-      'Sports Performance Coach',
-      'Online Coach',
-      'Personal Trainer',
-      'Fitness Coach',
-      'Sports Nutritionist',
-      'Dietitian',
-      'Yoga Teacher',
-      'CrossFit Coach',
-      'MMA Coach',
-      'Boxing Coach'
+    niches: [
+      'Sports & Performance',
+      'Strength & Conditioning',
+      'Concurrent / Multi-Discipline',
+      'HYROX / Endurance-Strength',
+      'Professional Online Strength',
+      'Body Composition & Fat Loss'
     ],
-    cities: [
-      { name: 'Delhi NCR', phase: 1 },
-      { name: 'Gurgaon', phase: 1 },
-      { name: 'Noida', phase: 1 },
-      { name: 'Mumbai', phase: 2 },
-      { name: 'Bangalore', phase: 2 }
-    ],
+    channels: ['Instagram', 'YouTube', 'LinkedIn', 'Google Search', 'Facebook', 'Directory'],
     statuses: [
       '⏳ Not Contacted',
       '📤 Sent',
       '💬 Replied',
       '⭐ Interested',
       '🎥 Demo Sent',
-      '📞 Call Scheduled',
       '🔄 Follow Up',
       '🤝 Trial / Onboarding',
       '💰 Won / Paid',
-      '❌ Lost',
-      '🚫 Not Interested',
-      '❌ Number Invalid',
-      '🛑 Do Not Contact'
+      '🚫 Not Interested'
     ]
   },
-  stats: null,
-  vaultMeta: null,
-  activePassword: ''
+  vault: null,
+  sessionPassword: null
 };
 
-// ================= NOTIFICATIONS & HELPERS =================
-
-function showToast(message) {
+// ================= UTILITIES & TOAST =================
+function showToast(message, isError = false) {
   const toast = document.getElementById('toastNotice');
-  const text = document.getElementById('toastNoticeText');
-  if (!toast || !text) return;
-  text.textContent = message;
+  const toastText = document.getElementById('toastNoticeText');
+  if (!toast || !toastText) return;
+  toastText.textContent = message;
+  toast.style.borderColor = isError ? '#ef4444' : 'var(--lime)';
+  toast.style.color = isError ? '#fca5a5' : '#fff';
   toast.classList.add('show');
   setTimeout(() => {
     toast.classList.remove('show');
@@ -91,7 +77,7 @@ function hexToBuf(hex) {
 }
 
 function base64ToBuf(b64) {
-  const bin = window.atob(b64);
+  const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) {
     bytes[i] = bin.charCodeAt(i);
@@ -99,26 +85,39 @@ function base64ToBuf(b64) {
   return bytes;
 }
 
+function bufToHex(buf) {
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function bufToBase64(buf) {
+  let bin = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) {
+    bin += String.fromCharCode(bytes[i]);
+  }
+  return btoa(bin);
+}
+
 function normalizeDigits(phone) {
   if (!phone) return '';
-  const clean = String(phone).replace(/\D/g, '');
-  return clean.length >= 10 ? clean.slice(-10) : clean;
+  const cleaned = String(phone).replace(/\D/g, '');
+  if (cleaned.length === 12 && cleaned.startsWith('91')) return cleaned.slice(2);
+  if (cleaned.length === 11 && cleaned.startsWith('0')) return cleaned.slice(1);
+  return cleaned.slice(-10);
 }
 
 function formatPhoneDisplay(phone) {
-  if (!phone) return '—';
-  const clean = String(phone).replace(/\D/g, '');
-  if (clean.length === 10) {
-    return `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`;
+  const norm = normalizeDigits(phone);
+  if (norm.length === 10) {
+    return `+91 ${norm.slice(0, 5)} ${norm.slice(5)}`;
   }
-  if (clean.length === 12 && clean.startsWith('91')) {
-    return `+91 ${clean.slice(2, 7)} ${clean.slice(7)}`;
-  }
-  return phone;
+  return phone || '—';
 }
 
 function escapeHtml(str) {
-  if (str === null || str === undefined) return '';
+  if (!str) return '';
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -127,10 +126,251 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-// ================= AES-256-GCM VAULT DECRYPTION =================
+function isDateOverdue(dateStr) {
+  if (!dateStr || dateStr === '—') return false;
+  const d = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return d < today;
+}
 
+// ================= 10-POINT QUALIFICATION ENGINE =================
+function calculate10PointScore(lead) {
+  let rawScore = 0;
+  const breakdown = [];
+  let isRejected = false;
+  let rejectionReason = '';
+
+  const biz = (lead.business_name || '') + ' ' + (lead.role || '') + ' ' + (lead.general_notes || '');
+  const isGym = lead.is_gym_or_studio === true || 
+    /\b(gym|fitness studio|fitness club|gym chain|facility|crossfit box|anytime fitness|cult\.fit|gold's gym)\b/i.test(biz) ||
+    lead.source === 'Google Maps Facility';
+
+  const isGenericInfluencer = lead.is_generic_influencer === true ||
+    lead.influencer_affiliate_model === true ||
+    /\b(affiliate|discount code|supplements sponsor|gymshark athlete|fashion nova|mass challenge|ebook seller)\b/i.test(lead.bio || lead.observed_workflow_signal || '');
+
+  if (isGym) {
+    rawScore -= 4;
+    breakdown.push({ points: -4, label: 'Commercial gym/studio/facility identity', positive: false });
+    isRejected = true;
+    rejectionReason = 'Commercial gym or fitness facility identity rather than independent coach.';
+  }
+
+  if (isGenericInfluencer) {
+    rawScore -= 3;
+    breakdown.push({ points: -3, label: 'Generic influencer/affiliate model', positive: false });
+    if (!rejectionReason) {
+      rejectionReason = 'Generic influencer content with no individualized coaching.';
+    }
+  }
+
+  // Positive Signal 1: Personal brand / independent coach (+2)
+  if (lead.has_personal_brand === true || (lead.name && !isGym && !isGenericInfluencer)) {
+    rawScore += 2;
+    breakdown.push({ points: 2, label: 'Personal brand / independent coach identity', positive: true });
+  }
+
+  // Positive Signal 2: Online / custom coaching offered (+2)
+  if (lead.is_online_coaching === 'YES' || lead.is_online_coaching === true || lead.online_coaching === true) {
+    rawScore += 2;
+    breakdown.push({ points: 2, label: 'Online / custom coaching clearly offered', positive: true });
+  }
+
+  // Positive Signal 3: Real client testimonials / results with names (+2)
+  if (lead.has_client_testimonials === 'YES' || lead.has_client_testimonials === true) {
+    rawScore += 2;
+    breakdown.push({ points: 2, label: 'Real client testimonials/results with names & timeframes', positive: true });
+  }
+
+  // Positive Signal 4: Coaching software visible (+2)
+  const software = String(lead.coaching_software || '').toLowerCase();
+  const hasDedicatedSoftware = ['trainerize', 'truecoach', 'coachrx', 'everfit', 'btrainr'].some(s => software.includes(s));
+  if ((lead.coaching_software_visible === 'YES' || lead.coaching_software_visible === true) && hasDedicatedSoftware) {
+    rawScore += 2;
+    breakdown.push({ points: 2, label: `Coaching software visible (${lead.coaching_software})`, positive: true });
+  }
+
+  // Positive Signal 5: Multiple modalities / programming complexity (+1)
+  if (lead.multiple_modalities === true || lead.is_custom_programming === 'YES') {
+    rawScore += 1;
+    breakdown.push({ points: 1, label: 'Multiple modalities / programming complexity', positive: true });
+  }
+
+  // Positive Signal 6: Own application / payment funnel (+1)
+  const funnel = String(lead.application_funnel || '').toLowerCase();
+  const hasFunnel = ['typeform', 'calendly', 'form', 'linktree', 'website', 'stripe', 'notion'].some(f => funnel.includes(f));
+  if ((lead.application_funnel_visible === 'YES' || lead.application_funnel_visible === true) && hasFunnel) {
+    rawScore += 1;
+    breakdown.push({ points: 1, label: `Own application/payment funnel (${lead.application_funnel})`, positive: true });
+  }
+
+  // Positive Signal 7: Visible WhatsApp/Sheets workflow chaos (+2)
+  const sig = String(lead.observed_workflow_signal || '');
+  if (lead.workflow_chaos_visible === true || /sheet|excel|check-in|review|feedback|voice note|chaos|backlog/i.test(sig)) {
+    rawScore += 2;
+    breakdown.push({ points: 2, label: 'Visible WhatsApp/Sheets operational chaos', positive: true });
+  }
+
+  const finalScore = Math.max(0, Math.min(10, rawScore));
+
+  let tier = 'POTENTIAL';
+  if (isRejected || finalScore < 4) {
+    tier = 'DISQUALIFIED';
+    isRejected = true;
+  } else if (finalScore >= 8) {
+    tier = 'HOT PROSPECT';
+  } else if (finalScore >= 6) {
+    tier = 'QUALIFIED';
+  }
+
+  const reason = isRejected ? (rejectionReason || 'Score below qualification threshold.') : `Score ${finalScore}/10. High-intent signals: ${breakdown.filter(b => b.positive).map(b => b.label).join(', ')}`;
+
+  return {
+    score: finalScore,
+    rawScore,
+    tier,
+    breakdown,
+    isRejected,
+    reason_for_score: reason
+  };
+}
+
+// ================= MULTI-CHANNEL DISCOVERY ASSISTANT =================
+function openDiscoveryModal() {
+  const modal = document.getElementById('discoveryModal');
+  if (!modal) return;
+  modal.classList.add('active');
+  updateDiscoveryQuery();
+}
+
+function closeDiscoveryModal() {
+  const modal = document.getElementById('discoveryModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function selectDiscoveryChannel(channel) {
+  state.discoveryChannel = channel;
+  document.querySelectorAll('.channel-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.includes(channel));
+  });
+  updateDiscoveryQuery();
+}
+
+function updateDiscoveryQuery() {
+  const nicheSelect = document.getElementById('discoveryNicheSelect');
+  const locationSelect = document.getElementById('discoveryLocationSelect');
+  const queryBox = document.getElementById('discoveryQueryText');
+  if (!nicheSelect || !locationSelect || !queryBox) return;
+
+  const niche = nicheSelect.value;
+  const location = locationSelect.value;
+  const channel = state.discoveryChannel;
+
+  const negativeExclusions = '-gym -studio -club -facility -crossfit_box -"fitness center" -"health club"';
+  
+  const nicheKeywords = {
+    'Sports & Performance': '("sports performance coach" OR "athletic performance" OR "athlete development" OR "speed and agility")',
+    'Strength & Conditioning': '("strength and conditioning coach" OR "S&C coach" OR "CSCS" OR "barbell coach")',
+    'Concurrent / Multi-Discipline': '("concurrent training" OR "hybrid athlete" OR "strength and endurance" OR "triathlon coach")',
+    'HYROX / Endurance-Strength': '("HYROX coach" OR "HYROX training" OR "endurance coach" OR "race prep coach")',
+    'Professional Online Strength': '("online strength coach" OR "powerlifting coach" OR "custom strength program")',
+    'Body Composition & Fat Loss': '("online physique coach" OR "body recomposition coach" OR "custom programming")'
+  };
+
+  const selectedNicheQuery = nicheKeywords[niche] || '("online fitness coach" OR "online strength coach" OR "1:1 coaching")';
+  let query = '';
+
+  switch (channel.toLowerCase()) {
+    case 'instagram':
+      query = `site:instagram.com ${selectedNicheQuery} ("DM to apply" OR "client check-ins" OR "accepting clients" OR "weekly check-in") ("${location}" OR "India") ${negativeExclusions}`;
+      break;
+    case 'youtube':
+      query = `site:youtube.com ${selectedNicheQuery} ("client check in" OR "how I program for clients" OR "weekly check in" OR "google sheets" OR "trainerize") ${negativeExclusions}`;
+      break;
+    case 'linkedin':
+      query = `site:linkedin.com/in ${selectedNicheQuery} ("online coaching" OR "remote coaching" OR "custom programming") ("${location}" OR "India") ${negativeExclusions}`;
+      break;
+    case 'google':
+    default:
+      query = `${selectedNicheQuery} ("apply for coaching" OR "1:1 coaching" OR "client check-in") ("${location}" OR "India") ${negativeExclusions}`;
+      break;
+  }
+
+  queryBox.value = query;
+}
+
+function copyDiscoveryQuery() {
+  const queryBox = document.getElementById('discoveryQueryText');
+  if (!queryBox) return;
+  navigator.clipboard.writeText(queryBox.value).then(() => {
+    showToast('Search query copied to clipboard!');
+  }).catch(() => {
+    showToast('Copy failed. Please manually copy text.', true);
+  });
+}
+
+function launchDiscoverySearch() {
+  const queryBox = document.getElementById('discoveryQueryText');
+  if (!queryBox || !queryBox.value) return;
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(queryBox.value)}`;
+  window.open(searchUrl, '_blank');
+}
+
+// ================= LIVE SCORE METER IN QUICK ADD MODAL =================
+function calculateModalLiveScore() {
+  const isGym = document.getElementById('checkGym')?.checked;
+  const isInfluencer = document.getElementById('checkInfluencer')?.checked;
+  const hasBrand = document.getElementById('checkBrand')?.checked;
+  const isOnline = document.getElementById('checkOnline')?.checked;
+  const hasTestimonials = document.getElementById('checkTestimonials')?.checked;
+  const hasSoftware = document.getElementById('checkSoftware')?.checked;
+  const hasModalities = document.getElementById('checkModalities')?.checked;
+  const hasFunnel = document.getElementById('checkFunnel')?.checked;
+  const hasChaos = document.getElementById('checkChaos')?.checked;
+
+  const softwareSelect = document.getElementById('quickInputSoftware')?.value;
+  const funnelSelect = document.getElementById('quickInputFunnel')?.value;
+  const signalInput = document.getElementById('quickInputSignal')?.value || '';
+
+  let rawScore = 0;
+  if (isGym) rawScore -= 4;
+  if (isInfluencer) rawScore -= 3;
+  if (hasBrand && !isGym) rawScore += 2;
+  if (isOnline) rawScore += 2;
+  if (hasTestimonials) rawScore += 2;
+  if (hasSoftware || (softwareSelect && !['None', 'Unknown'].includes(softwareSelect))) rawScore += 2;
+  if (hasModalities) rawScore += 1;
+  if (hasFunnel || (funnelSelect && !['None', 'Unknown'].includes(funnelSelect))) rawScore += 1;
+  if (hasChaos || /sheet|excel|whatsapp|check-in|review|feedback|voice note/i.test(signalInput)) rawScore += 2;
+
+  const finalScore = Math.max(0, Math.min(10, rawScore));
+
+  let tier = 'POTENTIAL';
+  if (isGym || isInfluencer || finalScore < 4) {
+    tier = 'DISQUALIFIED';
+  } else if (finalScore >= 8) {
+    tier = 'HOT PROSPECT';
+  } else if (finalScore >= 6) {
+    tier = 'QUALIFIED';
+  }
+
+  const scoreVal = document.getElementById('modalScoreVal');
+  const tierVal = document.getElementById('modalTierVal');
+  const scoreDisplay = document.getElementById('modalScoreDisplay');
+  const warn = document.getElementById('modalDisqualifyWarning');
+
+  if (scoreVal) scoreVal.textContent = finalScore;
+  if (tierVal) tierVal.textContent = tier;
+  if (warn) warn.style.display = (isGym || isInfluencer) ? 'block' : 'none';
+
+  if (scoreDisplay) {
+    scoreDisplay.className = `score-display-badge ${tier === 'HOT PROSPECT' ? 'badge-tier-hot' : (tier === 'QUALIFIED' ? 'badge-tier-qualified' : (tier === 'DISQUALIFIED' ? 'badge-tier-disqualified' : 'badge-tier-potential'))}`;
+  }
+}
+
+// ================= VAULT ENCRYPTION & AUTHENTICATION =================
 async function unlockVaultWithPassword(password) {
-  // Check local saved vault in localStorage first (for edits), else fetch vault.json
   let vaultJsonStr = localStorage.getItem('ca_encrypted_vault');
   let vault;
 
@@ -148,594 +388,454 @@ async function unlockVaultWithPassword(password) {
     vault = await res.json();
   }
 
-  state.vaultMeta = {
-    version: vault.version,
-    salt: vault.salt,
-    iv: vault.iv,
-    iterations: vault.iterations || 100000
-  };
+  state.vault = vault;
 
   const enc = new TextEncoder();
-  const passKey = await window.crypto.subtle.importKey(
+  const keyMaterial = await crypto.subtle.importKey(
     'raw',
     enc.encode(password),
-    'PBKDF2',
+    { name: 'PBKDF2' },
     false,
     ['deriveKey']
   );
 
   const saltBuf = hexToBuf(vault.salt);
-  const derivedKey = await window.crypto.subtle.deriveKey(
+  const derivedKey = await crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
       salt: saltBuf,
       iterations: vault.iterations || 100000,
       hash: 'SHA-256'
     },
-    passKey,
+    keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,
-    ['decrypt']
+    ['decrypt', 'encrypt']
   );
 
   const ivBuf = hexToBuf(vault.iv);
-  const cipherBuf = base64ToBuf(vault.ciphertext);
-  const tagBuf = hexToBuf(vault.tag);
+  const ctBuf = base64ToBuf(vault.ciphertext);
 
-  // Web Crypto API AES-GCM expects ciphertext and 16-byte tag concatenated
-  const combined = new Uint8Array(cipherBuf.length + tagBuf.length);
-  combined.set(cipherBuf, 0);
-  combined.set(tagBuf, cipherBuf.length);
-
+  let decryptedBuf;
   try {
-    const decrypted = await window.crypto.subtle.decrypt(
+    decryptedBuf = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: ivBuf },
       derivedKey,
-      combined
+      ctBuf
     );
-
-    const jsonStr = new TextDecoder().decode(decrypted);
-    const leads = JSON.parse(jsonStr);
-
-    // Normalize phone and fields
-    leads.forEach(l => {
-      l.mobile_number = l.mobile || l.mobile_number || '';
-      l.instagram_handle = l.instagram || l.instagram_handle || '';
-    });
-
-    state.leads = leads;
-    state.isUnlocked = true;
-    state.activePassword = password;
-    sessionStorage.setItem('ca_vault_session', password);
-
-    return leads;
   } catch (err) {
-    console.error('Decryption failed:', err);
-    throw new Error('Incorrect founder password. Access denied.');
+    throw new Error('Incorrect founder password. Vault unlock failed.');
   }
+
+  const dec = new TextDecoder('utf-8');
+  const plaintext = dec.decode(decryptedBuf);
+  const leadsData = JSON.parse(plaintext);
+
+  state.leads = leadsData.map(l => {
+    const qual = calculate10PointScore(l);
+    return {
+      ...l,
+      name: l.name || l.person_name || 'Coach',
+      social_channel: l.social_channel || (l.instagram ? 'Instagram' : (l.website ? 'Website' : 'Google Search')),
+      social_handle: l.social_handle || l.instagram || l.website || 'Unknown',
+      niche: l.niche || 'Strength & Conditioning',
+      city_country: l.city_country || `${l.city || 'India'}, India`,
+      qualification_score: qual.score,
+      qualification_tier: qual.tier,
+      reason_for_score: qual.reason_for_score,
+      score_breakdown: qual.breakdown
+    };
+  });
+
+  state.sessionPassword = password;
+  state.isUnlocked = true;
+  sessionStorage.setItem('ca_session_password', password);
+
+  return true;
 }
 
-// ================= AUTH & LOGIN HANDLERS =================
+async function persistVaultEdits() {
+  if (!state.sessionPassword || !state.vault) return;
+
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(state.sessionPassword),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey']
+  );
+
+  const saltBuf = hexToBuf(state.vault.salt);
+  const derivedKey = await crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: saltBuf,
+      iterations: state.vault.iterations || 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  );
+
+  const plaintext = JSON.stringify(state.leads);
+  const plaintextBuf = enc.encode(plaintext);
+  const newIv = crypto.getRandomValues(new Uint8Array(12));
+
+  const encryptedBuf = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: newIv },
+    derivedKey,
+    plaintextBuf
+  );
+
+  state.vault.iv = bufToHex(newIv);
+  state.vault.ciphertext = bufToBase64(encryptedBuf);
+  state.vault.lead_count = state.leads.length;
+  state.vault.updated_at = new Date().toISOString();
+
+  localStorage.setItem('ca_encrypted_vault', JSON.stringify(state.vault));
+}
 
 async function handleLogin(e) {
-  if (e) e.preventDefault();
+  e.preventDefault();
   const pwdInput = document.getElementById('passwordInput');
   const errDiv = document.getElementById('authError');
   const btn = document.getElementById('loginBtn');
-  const password = pwdInput ? pwdInput.value.trim() : '';
+  if (!pwdInput) return;
 
+  const password = pwdInput.value.trim();
   if (!password) return;
-  if (errDiv) errDiv.textContent = '';
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'UNLOCKING VAULT...';
-  }
+
+  btn.textContent = 'DECRYPTING VAULT...';
+  btn.disabled = true;
+  errDiv.textContent = '';
 
   try {
     await unlockVaultWithPassword(password);
-
     document.getElementById('loginView').style.display = 'none';
     document.getElementById('appView').style.display = 'block';
-    showToast(`⚡ Welcome, Founder! Decrypted ${state.leads.length} leads.`);
-    
-    populateDropdowns();
-    computeAndRenderDashboard();
-    applyFilters();
+    initializeAppUI();
+    showToast('Vault unlocked. Coach OS V2 initialized.');
   } catch (err) {
-    if (errDiv) errDiv.textContent = '🔒 ' + err.message;
+    errDiv.textContent = err.message || 'Unlock failed';
   } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'ENTER DASHBOARD';
-    }
+    btn.textContent = 'ENTER DASHBOARD';
+    btn.disabled = false;
   }
 }
 
 function handleLogout() {
   state.isUnlocked = false;
   state.leads = [];
-  state.filteredLeads = [];
-  state.currentLead = null;
-  state.activePassword = '';
-  sessionStorage.removeItem('ca_vault_session');
-
-  const pwdInput = document.getElementById('passwordInput');
-  if (pwdInput) pwdInput.value = '';
-  const errDiv = document.getElementById('authError');
-  if (errDiv) errDiv.textContent = '';
-
+  state.sessionPassword = null;
+  sessionStorage.removeItem('ca_session_password');
   document.getElementById('appView').style.display = 'none';
   document.getElementById('loginView').style.display = 'flex';
-  showToast('Logged out & memory cleared.');
+  const pwdInput = document.getElementById('passwordInput');
+  if (pwdInput) pwdInput.value = '';
+  showToast('Logged out securely.');
 }
 
 async function checkSessionOnLoad() {
-  const cachedPass = sessionStorage.getItem('ca_vault_session');
-  if (cachedPass) {
+  const savedPwd = sessionStorage.getItem('ca_session_password');
+  if (savedPwd) {
     try {
-      await unlockVaultWithPassword(cachedPass);
+      await unlockVaultWithPassword(savedPwd);
       document.getElementById('loginView').style.display = 'none';
       document.getElementById('appView').style.display = 'block';
-      populateDropdowns();
-      computeAndRenderDashboard();
-      applyFilters();
+      initializeAppUI();
+      return;
     } catch (e) {
-      sessionStorage.removeItem('ca_vault_session');
-      document.getElementById('loginView').style.display = 'flex';
-      document.getElementById('appView').style.display = 'none';
+      sessionStorage.removeItem('ca_session_password');
     }
-  } else {
-    document.getElementById('loginView').style.display = 'flex';
-    document.getElementById('appView').style.display = 'none';
   }
+  document.getElementById('loginView').style.display = 'flex';
+  document.getElementById('appView').style.display = 'none';
 }
 
-// ================= DASHBOARD & FUNNEL METRICS =================
+// ================= UI INITIALIZATION & DASHBOARD =================
+function initializeAppUI() {
+  applyFilters();
+  computeAndRenderDashboard();
+}
 
 function computeAndRenderDashboard() {
-  const leads = state.leads;
-  const total = leads.length;
+  const total = state.leads.length;
+  const hot = state.leads.filter(l => l.qualification_tier === 'HOT PROSPECT').length;
+  const qualified = state.leads.filter(l => l.qualification_tier === 'QUALIFIED').length;
+  const potential = state.leads.filter(l => l.qualification_tier === 'POTENTIAL').length;
+  const disqualified = state.leads.filter(l => l.qualification_tier === 'DISQUALIFIED').length;
 
-  let notContacted = 0;
-  let contacted = 0;
-  let replied = 0;
-  let interested = 0;
-  let demoSent = 0;
-  let callScheduled = 0;
-  let followUp = 0;
-  let trial = 0;
-  let won = 0;
-  let lost = 0;
-  let notInterested = 0;
-  let invalidNumber = 0;
-  let doNotContact = 0;
+  const notContacted = state.leads.filter(l => l.outreach_status === '⏳ Not Contacted').length;
+  const contacted = state.leads.filter(l => l.outreach_status === '📤 Sent').length;
+  const replied = state.leads.filter(l => l.outreach_status === '💬 Replied').length;
+  const interested = state.leads.filter(l => l.outreach_status === '⭐ Interested').length;
+  const trial = state.leads.filter(l => l.outreach_status === '🤝 Trial / Onboarding').length;
+  const paid = state.leads.filter(l => l.outreach_status === '💰 Won / Paid').length;
 
-  let hotLeads = 0;
-  let followUpsDueToday = 0;
-  let overdueCount = 0;
-
-  const today = new Date().toISOString().slice(0, 10);
-
-  const cityMap = {};
-  const roleMap = {};
-  const campaignMap = {};
-  const sourceMap = {};
-
-  leads.forEach(l => {
-    const s = l.outreach_status || '⏳ Not Contacted';
-    if (s.includes('Not Contacted')) notContacted++;
-    else if (s.includes('Sent')) contacted++;
-    else if (s.includes('Replied')) { contacted++; replied++; }
-    else if (s.includes('Interested')) { contacted++; replied++; interested++; }
-    else if (s.includes('Demo')) { contacted++; replied++; interested++; demoSent++; }
-    else if (s.includes('Call')) { contacted++; replied++; callScheduled++; }
-    else if (s.includes('Follow Up')) { contacted++; followUp++; }
-    else if (s.includes('Trial')) { contacted++; replied++; interested++; demoSent++; trial++; }
-    else if (s.includes('Won')) { contacted++; replied++; interested++; demoSent++; trial++; won++; }
-    else if (s.includes('Lost')) lost++;
-    else if (s.includes('Not Interested')) notInterested++;
-    else if (s.includes('Invalid')) invalidNumber++;
-    else if (s.includes('Do Not Contact')) doNotContact++;
-
-    if (l.priority === 'HOT' || (l.lead_score && l.lead_score >= 4)) hotLeads++;
-
-    const fDate = l.next_follow_up_date ? String(l.next_follow_up_date).slice(0, 10) : '';
-    if (fDate && fDate === today && !['💰 Won / Paid', '🚫 Not Interested'].includes(s)) {
-      followUpsDueToday++;
-    }
-    if (fDate && fDate < today && !['💰 Won / Paid', '🚫 Not Interested'].includes(s)) {
-      overdueCount++;
-    }
-
-    const c = l.city || 'Other';
-    cityMap[c] = (cityMap[c] || 0) + 1;
-
-    const r = l.role || 'Other';
-    roleMap[r] = (roleMap[r] || 0) + 1;
-
-    const camp = l.campaign || 'Delhi NCR Founder Outreach';
-    campaignMap[camp] = (campaignMap[camp] || 0) + 1;
-
-    const src = l.source || 'Google Maps';
-    sourceMap[src] = (sourceMap[src] || 0) + 1;
-  });
-
-  const funnel = {
-    leads: total,
-    contacted,
-    replied,
-    interested,
-    demoSent,
-    trial,
-    won,
-    rates: {
-      contactedRate: total ? Math.round((contacted / total) * 100) + '%' : '0%',
-      repliedRate: contacted ? Math.round((replied / contacted) * 100) + '%' : '0%',
-      interestedRate: replied ? Math.round((interested / replied) * 100) + '%' : '0%',
-      demoRate: interested ? Math.round((demoSent / interested) * 100) + '%' : '0%',
-      trialRate: demoSent ? Math.round((trial / demoSent) * 100) + '%' : '0%',
-      wonRate: trial ? Math.round((won / trial) * 100) + '%' : '0%'
-    }
-  };
-
-  state.stats = {
-    totalLeads: total,
-    funnel,
-    todayWork: {
-      followupsToday: followUpsDueToday,
-      overdue: overdueCount,
-      hotLeads: hotLeads,
-      notContacted: notContacted,
-      replied: replied
-    },
-    countsByCity: cityMap,
-    countsByRole: roleMap,
-    countsByCampaign: campaignMap,
-    countsBySource: sourceMap
-  };
-
-  // Update DOM elements
+  // Metric counts
   const setEl = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   };
 
-  // Top action strip
-  setEl('todayFollowUpsCount', followUpsDueToday);
-  setEl('todayOverdueCount', overdueCount);
-  setEl('todayHotCount', hotLeads);
-  setEl('todayNewCount', notContacted);
-  setEl('todayRepliedCount', replied);
-  setEl('tabCountLeads', total);
-  setEl('tabCountToday', followUpsDueToday + overdueCount);
-
-  // Top metrics grid
   setEl('metric-total', total);
+  setEl('metric-hot-prospects', hot);
+  setEl('metric-qualified-coaches', qualified);
+  setEl('metric-potential', potential);
+  setEl('metric-disqualified', disqualified);
   setEl('metric-not-contacted', notContacted);
   setEl('metric-contacted', contacted);
   setEl('metric-replied', replied);
   setEl('metric-interested', interested);
-  setEl('metric-demo', demoSent);
-  setEl('metric-followup', followUp);
   setEl('metric-trial', trial);
-  setEl('metric-won', won);
-  setEl('metric-not-interested', notInterested);
 
-  // Pipeline funnel
-  setEl('funnel-leads', funnel.leads);
-  setEl('funnel-contacted', funnel.contacted);
-  setEl('funnel-replied', funnel.replied);
-  setEl('funnel-interested', funnel.interested);
-  setEl('funnel-demo', funnel.demoSent);
-  setEl('funnel-trial', funnel.trial);
-  setEl('funnel-paid', funnel.won);
+  // Today's action strip
+  setEl('todayHotCount', hot);
+  setEl('todayQualifiedCount', qualified);
+  setEl('todayNewCount', notContacted);
+  setEl('todayRepliedCount', replied);
 
-  setEl('rate-contacted', funnel.rates.contactedRate);
-  setEl('rate-replied', funnel.rates.repliedRate);
-  setEl('rate-interested', funnel.rates.interestedRate);
-  setEl('rate-demo', funnel.rates.demoRate);
-  setEl('rate-trial', funnel.rates.trialRate);
-  setEl('rate-paid', funnel.rates.wonRate);
+  // Funnel
+  setEl('funnel-leads', total);
+  setEl('funnel-qualified', hot + qualified);
+  setEl('rate-qualified', total ? `${Math.round(((hot + qualified) / total) * 100)}%` : '0%');
+  setEl('funnel-contacted', contacted + replied + interested + trial + paid);
+  setEl('rate-contacted', total ? `${Math.round(((contacted + replied + interested + trial + paid) / total) * 100)}%` : '0%');
+  setEl('funnel-replied', replied + interested + trial + paid);
+  setEl('rate-replied', contacted ? `${Math.round(((replied + interested + trial + paid) / (contacted + replied + interested + trial + paid)) * 100)}%` : '0%');
+  setEl('funnel-interested', interested + trial + paid);
+  setEl('rate-interested', replied ? `${Math.round(((interested + trial + paid) / (replied + interested + trial + paid)) * 100)}%` : '0%');
+  setEl('funnel-paid', paid);
+  setEl('rate-paid', (interested + trial + paid) ? `${Math.round((paid / (interested + trial + paid)) * 100)}%` : '0%');
+
+  // Tab count badges
+  setEl('tabCountLeads', total);
 }
 
-function populateDropdowns() {
-  const roleSelects = [
-    document.getElementById('drawerInputRole'),
-    document.getElementById('quickInputRole')
-  ];
-
-  roleSelects.forEach(sel => {
-    if (!sel) return;
-    sel.innerHTML = '';
-    state.settings.roles.forEach(role => {
-      const opt = document.createElement('option');
-      opt.value = role;
-      opt.textContent = role;
-      sel.appendChild(opt);
-    });
-  });
-
-  const statusSelect = document.getElementById('drawerInputStatus');
-  if (statusSelect) {
-    statusSelect.innerHTML = '';
-    state.settings.statuses.forEach(st => {
-      const opt = document.createElement('option');
-      opt.value = st;
-      opt.textContent = st;
-      statusSelect.appendChild(opt);
-    });
-  }
-
-  renderSettingsLists();
-}
-
-function renderSettingsLists() {
-  const rolesList = document.getElementById('settingsRolesList');
-  if (rolesList) {
-    rolesList.innerHTML = state.settings.roles.map(r => `
-      <span class="badge-role">${escapeHtml(r)}</span>
-    `).join('');
-  }
-
-  const citiesList = document.getElementById('settingsCitiesList');
-  if (citiesList) {
-    citiesList.innerHTML = state.settings.cities.map(c => `
-      <span class="badge-city">${escapeHtml(c.name || c)} (P${c.phase || 1})</span>
-    `).join('');
-  }
-}
-
-// ================= NAVIGATION & TABS =================
-
-function switchMainTab(tabId) {
-  state.activeTab = tabId;
-
-  document.querySelectorAll('.nav-tab').forEach(tab => {
-    if (tab.getAttribute('data-tab') === tabId) {
-      tab.classList.add('active');
-    } else {
-      tab.classList.remove('active');
-    }
+// ================= NAVIGATION & VIEWS =================
+function switchMainTab(tab) {
+  state.activeTab = tab;
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tab);
   });
 
   const dashPanel = document.getElementById('tabView-dashboard');
   const analyticsPanel = document.getElementById('tabView-analytics');
-  const settingsPanel = document.getElementById('tabView-settings');
   const leadsWrapper = document.getElementById('leadsSectionWrapper');
 
-  if (tabId === 'dashboard') {
+  if (tab === 'dashboard') {
     if (dashPanel) dashPanel.style.display = 'block';
-    if (leadsWrapper) leadsWrapper.style.display = 'block';
     if (analyticsPanel) analyticsPanel.style.display = 'none';
-    if (settingsPanel) settingsPanel.style.display = 'none';
-    state.filters.quick = '';
-    applyFilters();
-  } else if (tabId === 'leads') {
-    if (dashPanel) dashPanel.style.display = 'none';
     if (leadsWrapper) leadsWrapper.style.display = 'block';
-    if (analyticsPanel) analyticsPanel.style.display = 'none';
-    if (settingsPanel) settingsPanel.style.display = 'none';
-    state.filters.quick = '';
-    applyFilters();
-  } else if (tabId === 'today') {
+    clearAllFilters();
+  } else if (tab === 'leads') {
     if (dashPanel) dashPanel.style.display = 'none';
+    if (analyticsPanel) analyticsPanel.style.display = 'none';
     if (leadsWrapper) leadsWrapper.style.display = 'block';
-    if (analyticsPanel) analyticsPanel.style.display = 'none';
-    if (settingsPanel) settingsPanel.style.display = 'none';
-    quickFilter('followupsToday');
-  } else if (tabId === 'top') {
+  } else if (tab === 'top20') {
     if (dashPanel) dashPanel.style.display = 'none';
+    if (analyticsPanel) analyticsPanel.style.display = 'none';
     if (leadsWrapper) leadsWrapper.style.display = 'block';
-    if (analyticsPanel) analyticsPanel.style.display = 'none';
-    if (settingsPanel) settingsPanel.style.display = 'none';
-    quickFilter('top20');
-  } else if (tabId === 'analytics') {
+    applySavedView('top_20_hot');
+  } else if (tab === 'today') {
     if (dashPanel) dashPanel.style.display = 'none';
-    if (leadsWrapper) leadsWrapper.style.display = 'none';
+    if (analyticsPanel) analyticsPanel.style.display = 'none';
+    if (leadsWrapper) leadsWrapper.style.display = 'block';
+    applySavedView('followups_today');
+  } else if (tab === 'analytics') {
+    if (dashPanel) dashPanel.style.display = 'none';
     if (analyticsPanel) analyticsPanel.style.display = 'block';
-    if (settingsPanel) settingsPanel.style.display = 'none';
-    renderAnalytics();
-  } else if (tabId === 'settings') {
-    if (dashPanel) dashPanel.style.display = 'none';
     if (leadsWrapper) leadsWrapper.style.display = 'none';
-    if (analyticsPanel) analyticsPanel.style.display = 'none';
-    if (settingsPanel) settingsPanel.style.display = 'block';
-    renderSettingsLists();
+    renderAnalytics();
   }
 }
 
-// ================= FILTERING & SEARCH =================
-
+// ================= SEARCH & FILTERING =================
 function handleSearchInput() {
   const input = document.getElementById('globalSearchInput');
   state.searchQuery = input ? input.value.trim().toLowerCase() : '';
+  state.pagination.page = 1;
   applyFilters();
 }
 
-function setFilter(category, val) {
-  state.filters[category] = val;
+function setFilter(type, value) {
+  state.filters[type] = value;
+  state.pagination.page = 1;
 
-  let rowId = '';
-  if (category === 'city') rowId = 'regionFiltersRow';
-  if (category === 'priority') rowId = 'priorityFiltersRow';
-  if (category === 'role') rowId = 'roleFiltersRow';
-
+  const rowId = `${type}FiltersRow`;
   const row = document.getElementById(rowId);
   if (row) {
     row.querySelectorAll('.filter-pill').forEach(pill => {
-      const onclickAttr = pill.getAttribute('onclick') || '';
-      if (onclickAttr.includes(`'${val}'`)) {
-        pill.classList.add('active');
-      } else {
-        pill.classList.remove('active');
-      }
+      pill.classList.toggle('active', pill.textContent.includes(value) || (value === 'all' && pill.textContent.includes('All')));
     });
   }
 
   applyFilters();
+}
+
+function filterByTier(tier) {
+  setFilter('tier', tier);
+  const leadsWrap = document.getElementById('leadsSectionWrapper');
+  if (leadsWrap) leadsWrap.scrollIntoView({ behavior: 'smooth' });
 }
 
 function filterByStatus(status) {
   state.filters.status = status;
-  switchMainTab('leads');
+  state.pagination.page = 1;
   applyFilters();
+  const leadsWrap = document.getElementById('leadsSectionWrapper');
+  if (leadsWrap) leadsWrap.scrollIntoView({ behavior: 'smooth' });
 }
 
 function quickFilter(type) {
   state.filters.quick = type;
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  if (type === 'followupsToday') {
-    state.filters.status = 'all';
-    state.filteredLeads = state.leads.filter(l => {
-      const fDate = l.next_follow_up_date ? String(l.next_follow_up_date).slice(0, 10) : '';
-      return fDate === todayStr || (fDate && fDate < todayStr);
-    });
-  } else if (type === 'overdue') {
-    state.filteredLeads = state.leads.filter(l => {
-      const fDate = l.next_follow_up_date ? String(l.next_follow_up_date).slice(0, 10) : '';
-      return fDate && fDate < todayStr && !['💰 Won / Paid', '❌ Lost', '🛑 Do Not Contact'].includes(l.outreach_status);
-    });
-  } else if (type === 'hotLeads') {
-    state.filteredLeads = state.leads.filter(l => l.priority === 'HOT' || l.lead_score >= 4);
+  if (type === 'hotLeads') {
+    setFilter('tier', 'HOT PROSPECT');
+  } else if (type === 'qualifiedCoaches') {
+    setFilter('tier', 'QUALIFIED');
   } else if (type === 'notContacted') {
-    state.filteredLeads = state.leads.filter(l => (l.outreach_status || '').includes('Not Contacted'));
+    filterByStatus('⏳ Not Contacted');
   } else if (type === 'replied') {
-    state.filteredLeads = state.leads.filter(l => (l.outreach_status || '').includes('Replied'));
-  } else if (type === 'top20') {
-    state.filteredLeads = [...state.leads]
-      .sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))
-      .slice(0, 20);
-  } else if (type === 'newOutreach') {
-    state.filteredLeads = state.leads.filter(l => (l.outreach_status || '').includes('Not Contacted') && (l.lead_score >= 3 || l.priority === 'HOT'));
+    filterByStatus('💬 Replied');
+  } else if (type === 'followupsToday') {
+    applySavedView('followups_today');
   }
-
-  state.pagination.page = 1;
-  renderLeadsList();
 }
 
-function applySavedView(preset) {
+function applySavedView(view) {
   clearAllFilters(false);
-  const sel = document.getElementById('savedViewsSelect');
-  if (sel) sel.value = preset;
+  const select = document.getElementById('savedViewsSelect');
+  if (select) select.value = view;
 
-  if (preset === 'hot_not_contacted') {
-    setFilter('priority', 'HOT');
-    state.filters.status = '⏳ Not Contacted';
-  } else if (preset === 'delhi_sc') {
-    setFilter('city', 'Delhi NCR');
-    setFilter('role', 'Strength & Conditioning Coach');
-  } else if (preset === 'ncr_online') {
-    setFilter('city', 'Delhi NCR');
-    setFilter('role', 'Online Coach');
-  } else if (preset === 'followups_today') {
-    quickFilter('followupsToday');
-    return;
-  } else if (preset === 'sports_nutritionists') {
-    setFilter('role', 'Sports Nutritionist');
-  } else if (preset === 'high_score') {
-    state.filters.score = '4+';
-  } else if (preset === 'demo_sent') {
-    state.filters.status = '🎥 Demo Sent';
-  } else if (preset === 'interested') {
-    state.filters.status = '⭐ Interested';
+  if (view === 'top_20_hot') {
+    state.filters.tier = 'HOT PROSPECT';
+    state.sortField = 'qualification_score';
+    state.sortAsc = false;
+  } else if (view === 'all_qualified') {
+    state.filters.quick = 'all_qualified';
+  } else if (view === 'sports_performance') {
+    state.filters.niche = 'Sports & Performance';
+  } else if (view === 'sc_coaches') {
+    state.filters.niche = 'Strength & Conditioning';
+  } else if (view === 'hyrox_coaches') {
+    state.filters.niche = 'HYROX / Endurance-Strength';
+  } else if (view === 'concurrent_coaches') {
+    state.filters.niche = 'Concurrent / Multi-Discipline';
+  } else if (view === 'online_strength') {
+    state.filters.niche = 'Professional Online Strength';
+  } else if (view === 'has_software') {
+    state.filters.quick = 'has_software';
+  } else if (view === 'workflow_chaos') {
+    state.filters.quick = 'workflow_chaos';
+  } else if (view === 'followups_today') {
+    state.filters.quick = 'followups_today';
+  } else if (view === 'disqualified') {
+    state.filters.tier = 'DISQUALIFIED';
   }
 
   applyFilters();
 }
 
-function clearAllFilters(reRender = true) {
+function clearAllFilters(rerender = true) {
   state.searchQuery = '';
   state.filters = {
-    city: 'all',
-    role: 'all',
+    tier: 'all',
+    niche: 'all',
+    social_channel: 'all',
     status: 'all',
     priority: 'all',
-    score: 'all',
-    source: 'all',
     quick: ''
   };
+  state.sortField = 'qualification_score';
+  state.sortAsc = false;
+  state.pagination.page = 1;
 
   const sInput = document.getElementById('globalSearchInput');
   if (sInput) sInput.value = '';
 
-  const sView = document.getElementById('savedViewsSelect');
-  if (sView) sView.value = '';
+  const vSelect = document.getElementById('savedViewsSelect');
+  if (vSelect) vSelect.value = '';
 
-  document.querySelectorAll('.filter-pills-row').forEach(row => {
-    row.querySelectorAll('.filter-pill').forEach((pill, idx) => {
-      if (idx === 0) pill.classList.add('active');
-      else pill.classList.remove('active');
-    });
+  document.querySelectorAll('.filter-pill').forEach(pill => {
+    pill.classList.toggle('active', pill.textContent.includes('All'));
   });
 
-  if (reRender) applyFilters();
+  if (rerender) applyFilters();
 }
 
 function applyFilters() {
-  if (state.filters.quick) {
-    quickFilter(state.filters.quick);
-    return;
-  }
+  let list = [...state.leads];
 
-  let result = [...state.leads];
-
+  // Search filter
   if (state.searchQuery) {
     const q = state.searchQuery;
-    result = result.filter(l => {
-      return (l.person_name && l.person_name.toLowerCase().includes(q)) ||
-        (l.business_name && l.business_name.toLowerCase().includes(q)) ||
-        (l.mobile_number && l.mobile_number.includes(q)) ||
-        (l.mobile && l.mobile.includes(q)) ||
-        (l.city && l.city.toLowerCase().includes(q)) ||
-        (l.role && l.role.toLowerCase().includes(q)) ||
-        (l.instagram_handle && l.instagram_handle.toLowerCase().includes(q)) ||
-        (l.website && l.website.toLowerCase().includes(q)) ||
-        (l.call_notes && l.call_notes.toLowerCase().includes(q));
+    list = list.filter(l => {
+      const name = (l.name || l.person_name || '').toLowerCase();
+      const niche = (l.niche || '').toLowerCase();
+      const handle = (l.social_handle || l.instagram || '').toLowerCase();
+      const signal = (l.observed_workflow_signal || '').toLowerCase();
+      const city = (l.city_country || l.city || '').toLowerCase();
+      const soft = (l.coaching_software || '').toLowerCase();
+      const notes = (l.general_notes || l.call_notes || '').toLowerCase();
+      return name.includes(q) || niche.includes(q) || handle.includes(q) || signal.includes(q) || city.includes(q) || soft.includes(q) || notes.includes(q);
     });
   }
 
-  if (state.filters.city !== 'all') {
-    result = result.filter(l => (l.city || '').toLowerCase().includes(state.filters.city.toLowerCase()));
+  // Tier filter
+  if (state.filters.tier !== 'all') {
+    list = list.filter(l => l.qualification_tier === state.filters.tier);
   }
 
-  if (state.filters.priority !== 'all') {
-    result = result.filter(l => l.priority === state.filters.priority);
+  // Niche filter
+  if (state.filters.niche !== 'all') {
+    list = list.filter(l => l.niche === state.filters.niche);
   }
 
-  if (state.filters.role !== 'all') {
-    result = result.filter(l => (l.role || '').toLowerCase().includes(state.filters.role.toLowerCase()));
+  // Channel filter
+  if (state.filters.social_channel !== 'all') {
+    list = list.filter(l => l.social_channel === state.filters.social_channel);
   }
 
+  // Status filter
   if (state.filters.status !== 'all') {
-    result = result.filter(l => l.outreach_status === state.filters.status);
+    list = list.filter(l => l.outreach_status === state.filters.status);
   }
 
-  if (state.filters.score === '4+') {
-    result = result.filter(l => (l.lead_score || 0) >= 4);
+  // Quick views
+  if (state.filters.quick === 'all_qualified') {
+    list = list.filter(l => ['HOT PROSPECT', 'QUALIFIED'].includes(l.qualification_tier));
+  } else if (state.filters.quick === 'has_software') {
+    list = list.filter(l => l.coaching_software && !['None', 'Unknown'].includes(l.coaching_software));
+  } else if (state.filters.quick === 'workflow_chaos') {
+    list = list.filter(l => /sheet|excel|whatsapp|check-in|review|feedback|voice note/i.test(l.observed_workflow_signal || ''));
   }
 
   // Sorting
-  result.sort((a, b) => {
-    let va = a[state.sortField];
-    let vb = b[state.sortField];
+  list.sort((a, b) => {
+    let valA = a[state.sortField];
+    let valB = b[state.sortField];
 
-    if (state.sortField === 'lead_score') {
-      va = va || 0;
-      vb = vb || 0;
+    if (state.sortField === 'qualification_score') {
+      valA = Number(valA) || 0;
+      valB = Number(valB) || 0;
     } else {
-      va = (va || '').toString().toLowerCase();
-      vb = (vb || '').toString().toLowerCase();
+      valA = String(valA || '').toLowerCase();
+      valB = String(valB || '').toLowerCase();
     }
 
-    if (va < vb) return state.sortAsc ? -1 : 1;
-    if (va > vb) return state.sortAsc ? 1 : -1;
+    if (valA < valB) return state.sortAsc ? -1 : 1;
+    if (valA > valB) return state.sortAsc ? 1 : -1;
     return 0;
   });
 
-  state.filteredLeads = result;
-  state.pagination.page = 1;
+  state.filteredLeads = list;
+  state.pagination.total = list.length;
+
   renderLeadsList();
+  renderPagination();
 }
 
 function handleSort(field) {
@@ -743,267 +843,458 @@ function handleSort(field) {
     state.sortAsc = !state.sortAsc;
   } else {
     state.sortField = field;
-    state.sortAsc = field === 'person_name' || field === 'city';
+    state.sortAsc = false;
   }
   applyFilters();
 }
 
-function changePage(delta) {
-  const maxPages = Math.ceil(state.filteredLeads.length / state.pagination.pageSize) || 1;
-  const newPage = state.pagination.page + delta;
-  if (newPage >= 1 && newPage <= maxPages) {
-    state.pagination.page = newPage;
-    renderLeadsList();
+// ================= TABLE & CARD RENDERING =================
+function renderLeadsList() {
+  const tbody = document.getElementById('leadsTableBody');
+  const cardsGrid = document.getElementById('mobileCardsGrid');
+  if (!tbody || !cardsGrid) return;
+
+  tbody.innerHTML = '';
+  cardsGrid.innerHTML = '';
+
+  const start = (state.pagination.page - 1) * state.pagination.pageSize;
+  const end = Math.min(start + state.pagination.pageSize, state.filteredLeads.length);
+  const pageItems = state.filteredLeads.slice(start, end);
+
+  if (pageItems.length === 0) {
+    const emptyRow = `
+      <tr>
+        <td colspan="10" style="text-align: center; padding: 40px; color: var(--text-dim);">
+          No matching coach prospects found for current filters.
+        </td>
+      </tr>
+    `;
+    tbody.innerHTML = emptyRow;
+    cardsGrid.innerHTML = '<div style="text-align: center; padding: 30px; color: var(--text-dim); width: 100%;">No matching coaches.</div>';
+    return;
   }
+
+  pageItems.forEach(lead => {
+    tbody.innerHTML += renderLeadTableRow(lead);
+    cardsGrid.innerHTML += renderMobileCard(lead);
+  });
 }
 
-// ================= RENDERING (DESKTOP & MOBILE) =================
-
-function renderLeadsList() {
-  const total = state.filteredLeads.length;
-  state.pagination.total = total;
-  const startIdx = (state.pagination.page - 1) * state.pagination.pageSize;
-  const endIdx = Math.min(startIdx + state.pagination.pageSize, total);
-  const pageLeads = state.filteredLeads.slice(startIdx, endIdx);
-
-  const pStart = document.getElementById('pageCountStart');
-  const pEnd = document.getElementById('pageCountEnd');
-  const pTotal = document.getElementById('pageCountTotal');
-  if (pStart) pStart.textContent = total > 0 ? startIdx + 1 : 0;
-  if (pEnd) pEnd.textContent = endIdx;
-  if (pTotal) pTotal.textContent = total;
-
-  const prevBtn = document.getElementById('prevPageBtn');
-  const nextBtn = document.getElementById('nextPageBtn');
-  if (prevBtn) prevBtn.disabled = state.pagination.page <= 1;
-  if (nextBtn) nextBtn.disabled = endIdx >= total;
-
-  // Desktop table
-  const tbody = document.getElementById('leadsTableBody');
-  if (tbody) {
-    if (pageLeads.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="17" style="text-align: center; padding: 40px; color: var(--text-dim);">No leads match the current filters.</td></tr>`;
-    } else {
-      tbody.innerHTML = pageLeads.map(l => renderLeadTableRow(l)).join('');
-    }
+function getTierBadgeHtml(tier, score) {
+  if (tier === 'HOT PROSPECT') {
+    return `<span class="badge-tier badge-tier-hot">🔥 ${score}/10 HOT</span>`;
   }
-
-  // Mobile touch cards
-  const mobileContainer = document.getElementById('mobileCardsGrid');
-  if (mobileContainer) {
-    if (pageLeads.length === 0) {
-      mobileContainer.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text-dim);">No leads match the current filters.</div>`;
-    } else {
-      mobileContainer.innerHTML = pageLeads.map(l => renderMobileCard(l)).join('');
-    }
+  if (tier === 'QUALIFIED') {
+    return `<span class="badge-tier badge-tier-qualified">⭐ ${score}/10 QUALIFIED</span>`;
   }
+  if (tier === 'POTENTIAL') {
+    return `<span class="badge-tier badge-tier-potential">🟡 ${score}/10 REVIEW</span>`;
+  }
+  return `<span class="badge-tier badge-tier-disqualified">❌ ${score}/10 REJECTED</span>`;
 }
 
 function renderLeadTableRow(l) {
+  const tierBadge = getTierBadgeHtml(l.qualification_tier, l.qualification_score);
+  const channelIcon = l.social_channel === 'Instagram' ? '📸' : (l.social_channel === 'YouTube' ? '▶️' : (l.social_channel === 'LinkedIn' ? '💼' : '🌐'));
+  const profileUrl = l.source_url || (l.social_handle?.startsWith('http') ? l.social_handle : `https://instagram.com/${(l.social_handle || '').replace('@', '')}`);
+  
   const phone = l.mobile_number || l.mobile;
   const normPhone = normalizeDigits(phone);
   const waUrl = normPhone ? `https://wa.me/91${normPhone}` : '#';
-  const callUrl = phone ? `tel:${phone}` : '#';
-  const ig = l.instagram_handle || l.instagram;
-  const igUrl = ig ? `https://instagram.com/${ig.replace('@', '')}` : '#';
-
-  const priorityClass = `badge-priority-${(l.priority || 'LOW').toLowerCase()}`;
-  const scoreBadge = getScoreBadge(l.lead_score);
 
   const statusOptions = state.settings.statuses.map(st => `
     <option value="${escapeHtml(st)}" ${l.outreach_status === st ? 'selected' : ''}>${escapeHtml(st)}</option>
   `).join('');
 
-  const nextDateFormatted = l.next_follow_up_date ? String(l.next_follow_up_date).slice(0, 10) : '—';
-  const lastContactFormatted = l.last_contact_date ? String(l.last_contact_date).slice(0, 10) : '—';
-
   return `
     <tr id="lead-row-${l.id}">
-      <td><span class="badge-priority ${priorityClass}">${escapeHtml(l.priority || 'LOW')}</span></td>
-      <td>${scoreBadge}</td>
+      <td>${tierBadge}</td>
       <td>
-        <div style="font-weight: 700; color: #fff; cursor: pointer;" onclick="openLeadDrawer('${l.id}')">
-          ${escapeHtml(l.person_name || 'Unknown')}
+        <div style="font-weight: 700; color: #fff; cursor: pointer; font-size: 13px;" onclick="openLeadDrawer('${l.id}')">
+          ${escapeHtml(l.name || l.person_name || 'Coach')}
+        </div>
+        <div style="font-size: 11px; color: #60a5fa; margin-top: 2px;">
+          <a href="${profileUrl}" target="_blank" style="color: #60a5fa; text-decoration: none;">
+            ${channelIcon} ${escapeHtml(l.social_handle || 'View Profile')}
+          </a>
         </div>
       </td>
       <td>
-        <span style="color: var(--text-secondary); font-size: 11px;">
-          ${escapeHtml(l.business_name || '—')}
-        </span>
+        <span class="badge-role" style="font-size: 10px;">${escapeHtml(l.niche || 'Strength & Conditioning')}</span>
       </td>
-      <td><span class="badge-role">${escapeHtml(l.role || 'Fitness Coach')}</span></td>
-      <td><span class="badge-city">${escapeHtml(l.city || 'Delhi NCR')}</span></td>
-      <td style="color: var(--text-dim); font-size: 11px;">${escapeHtml(l.state || 'Delhi')}</td>
+      <td style="font-size: 11px; color: var(--text-dim);">${escapeHtml(l.city_country || l.city || 'India')}</td>
       <td>
-        <span class="phone-link" onclick="copyPhone('${escapeHtml(phone || '')}')" title="Click to copy">
-          ${formatPhoneDisplay(phone)}
-        </span>
+        <div class="signal-snippet" title="${escapeHtml(l.observed_workflow_signal || '—')}">
+          ${escapeHtml(l.observed_workflow_signal || '—')}
+        </div>
       </td>
-      <td>
-        ${normPhone ? `
-          <a href="${waUrl}" target="_blank" class="btn-tbl-action btn-tbl-wa" onclick="trackLeadAction('${l.id}', 'WhatsApp Click')">
-            💬 WA
-          </a>
-        ` : '—'}
-      </td>
-      <td>
-        ${ig ? `
-          <a href="${igUrl}" target="_blank" class="btn-tbl-action btn-tbl-ig">
-            📷 ${escapeHtml(ig)}
-          </a>
-        ` : '—'}
-      </td>
-      <td>
-        ${l.website ? `
-          <a href="${escapeHtml(l.website)}" target="_blank" style="color: #60a5fa; font-size: 11px; text-decoration: none;">
-            🌐 Web
-          </a>
-        ` : '—'}
-      </td>
-      <td style="font-size: 11px; color: var(--text-dim);">${escapeHtml(l.current_system || '—')}</td>
-      <td style="font-size: 11px; color: var(--text-dim);">${escapeHtml(l.client_count || '—')}</td>
+      <td style="font-size: 11px; color: #38bdf8;">${escapeHtml(l.coaching_software || '—')}</td>
+      <td style="font-size: 11px; color: var(--text-dim);">${escapeHtml(l.application_funnel || '—')}</td>
       <td>
         <select class="tbl-status-select" onchange="handleStatusChange('${l.id}', this.value)">
           ${statusOptions}
         </select>
       </td>
-      <td style="font-size: 11px; color: var(--text-dim);">${lastContactFormatted}</td>
-      <td style="font-size: 11px; color: ${isDateOverdue(nextDateFormatted) ? '#ef4444; font-weight: 700;' : 'var(--text-dim)'};">${nextDateFormatted}</td>
+      <td>
+        ${normPhone ? `
+          <a href="${waUrl}" target="_blank" class="btn-tbl-action btn-tbl-wa" title="Open WhatsApp">
+            💬 WA
+          </a>
+        ` : `
+          <a href="${profileUrl}" target="_blank" class="btn-tbl-action btn-tbl-ig" title="Open Profile">
+            ${channelIcon} DM
+          </a>
+        `}
+      </td>
       <td style="text-align: right; white-space: nowrap;">
-        <button class="btn-tbl-action" onclick="openSmartPitchModal('${l.id}')" title="Smart Pitch">💬</button>
-        <button class="btn-tbl-action" onclick="openLeadDrawer('${l.id}')" title="View Full Details">👁️</button>
+        <button class="btn-tbl-action" onclick="openSmartPitchModal('${l.id}')" title="Generate CoreAthlete Adaptation Pitch">💬 Pitch</button>
+        <button class="btn-tbl-action" onclick="openLeadDrawer('${l.id}')" title="360° Coach Dossier">👁️</button>
       </td>
     </tr>
   `;
 }
 
 function renderMobileCard(l) {
+  const tierBadge = getTierBadgeHtml(l.qualification_tier, l.qualification_score);
+  const profileUrl = l.source_url || (l.social_handle?.startsWith('http') ? l.social_handle : `https://instagram.com/${(l.social_handle || '').replace('@', '')}`);
   const phone = l.mobile_number || l.mobile;
   const normPhone = normalizeDigits(phone);
   const waUrl = normPhone ? `https://wa.me/91${normPhone}` : '#';
-  const callUrl = phone ? `tel:${phone}` : '#';
-  const ig = l.instagram_handle || l.instagram;
-  const igUrl = ig ? `https://instagram.com/${ig.replace('@', '')}` : '#';
-
-  const priorityClass = `badge-priority-${(l.priority || 'LOW').toLowerCase()}`;
-  const scoreBadge = getScoreBadge(l.lead_score);
-
-  const statusOptions = state.settings.statuses.map(st => `
-    <option value="${escapeHtml(st)}" ${l.outreach_status === st ? 'selected' : ''}>${escapeHtml(st)}</option>
-  `).join('');
 
   return `
     <div class="mobile-lead-card" id="mobile-card-${l.id}">
-      <div class="card-top-row">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
         <div>
-          <div class="card-person-name" onclick="openLeadDrawer('${l.id}')">${escapeHtml(l.person_name || 'Unknown')}</div>
-          <div class="card-biz-name">${escapeHtml(l.business_name || 'Independent Coach')}</div>
+          <div style="font-weight: 800; color: #fff; font-size: 14px;" onclick="openLeadDrawer('${l.id}')">
+            ${escapeHtml(l.name || l.person_name || 'Coach')}
+          </div>
+          <div style="font-size: 11px; color: #60a5fa;">
+            <a href="${profileUrl}" target="_blank" style="color: #60a5fa; text-decoration: none;">
+              ${escapeHtml(l.social_handle || 'Profile')}
+            </a>
+          </div>
         </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          ${scoreBadge}
-          <span class="badge-priority ${priorityClass}">${escapeHtml(l.priority || 'LOW')}</span>
-        </div>
+        <div>${tierBadge}</div>
       </div>
 
-      <div class="card-info-grid">
-        <div><span class="card-field-label">Role:</span> ${escapeHtml(l.role || 'Coach')}</div>
-        <div><span class="card-field-label">City:</span> ${escapeHtml(l.city || 'Delhi NCR')}</div>
-        <div><span class="card-field-label">System:</span> ${escapeHtml(l.current_system || '—')}</div>
-        <div><span class="card-field-label">Clients:</span> ${escapeHtml(l.client_count || '—')}</div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
+        <span class="badge-role" style="font-size: 10px;">${escapeHtml(l.niche || 'Strength & Conditioning')}</span>
+        <span class="badge-city" style="font-size: 10px;">${escapeHtml(l.city_country || 'India')}</span>
+        ${l.coaching_software && l.coaching_software !== 'None' ? `<span style="background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.3); color: #38bdf8; font-size: 10px; padding: 2px 6px; border-radius: 4px;">📱 ${escapeHtml(l.coaching_software)}</span>` : ''}
       </div>
 
-      <div class="card-actions-row">
-        <a href="${callUrl}" class="btn-card-action">📞 Call</a>
-        <a href="${waUrl}" target="_blank" class="btn-card-action btn-card-wa" onclick="trackLeadAction('${l.id}', 'Mobile WA')">💬 WhatsApp</a>
-        ${ig ? `<a href="${igUrl}" target="_blank" class="btn-card-action">📷 IG</a>` : ''}
-        <button class="btn-card-action btn-card-view" onclick="openLeadDrawer('${l.id}')">👁️ View</button>
+      <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.4;">
+        ${escapeHtml(l.observed_workflow_signal || 'No observed workflow notes')}
       </div>
 
-      <div style="margin-top: 10px;">
-        <select class="tbl-status-select" style="width: 100%;" onchange="handleStatusChange('${l.id}', this.value)">
-          ${statusOptions}
-        </select>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+        <a href="${profileUrl}" target="_blank" class="btn-tbl-action" style="justify-content: center; padding: 8px;">📸 Profile</a>
+        ${normPhone ? `<a href="${waUrl}" target="_blank" class="btn-tbl-action btn-tbl-wa" style="justify-content: center; padding: 8px;">💬 WA</a>` : '<button class="btn-tbl-action" style="opacity: 0.4; justify-content: center;">No WA</button>'}
+        <button class="btn-tbl-action" onclick="openLeadDrawer('${l.id}')" style="justify-content: center; padding: 8px;">👁️ Dossier</button>
       </div>
     </div>
   `;
 }
 
-function getScoreBadge(score) {
-  const s = parseInt(score, 10) || 0;
-  if (s >= 5) return `<span class="score-pill score-5">⭐ 5/5</span>`;
-  if (s === 4) return `<span class="score-pill score-4">⭐ 4/5</span>`;
-  if (s === 3) return `<span class="score-pill score-3">⭐ 3/5</span>`;
-  return `<span class="score-pill score-low">${s}/5</span>`;
+function renderPagination() {
+  const start = state.filteredLeads.length ? (state.pagination.page - 1) * state.pagination.pageSize + 1 : 0;
+  const end = Math.min(state.pagination.page * state.pagination.pageSize, state.filteredLeads.length);
+
+  const startEl = document.getElementById('pageCountStart');
+  const endEl = document.getElementById('pageCountEnd');
+  const totalEl = document.getElementById('pageCountTotal');
+  const prevBtn = document.getElementById('prevPageBtn');
+  const nextBtn = document.getElementById('nextPageBtn');
+
+  if (startEl) startEl.textContent = start;
+  if (endEl) endEl.textContent = end;
+  if (totalEl) totalEl.textContent = state.filteredLeads.length;
+
+  if (prevBtn) prevBtn.disabled = state.pagination.page <= 1;
+  if (nextBtn) nextBtn.disabled = end >= state.filteredLeads.length;
 }
 
-function isDateOverdue(dateStr) {
-  if (!dateStr || dateStr === '—') return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return dateStr < today;
+function changePage(delta) {
+  state.pagination.page += delta;
+  renderLeadsList();
+  renderPagination();
+}
+
+// ================= QUICK ADD / PROSPECT COACH =================
+function openQuickAddModal() {
+  const modal = document.getElementById('quickAddModal');
+  if (!modal) return;
+  modal.classList.add('active');
+  calculateModalLiveScore();
+}
+
+function closeQuickAddModal() {
+  const modal = document.getElementById('quickAddModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function handleQuickAddSubmit(e) {
+  e.preventDefault();
+  const name = document.getElementById('quickInputName')?.value.trim();
+  const niche = document.getElementById('quickInputNiche')?.value;
+  const channel = document.getElementById('quickInputChannel')?.value;
+  const handle = document.getElementById('quickInputHandle')?.value.trim();
+  const city = document.getElementById('quickInputCity')?.value.trim() || 'India';
+  const mobile = document.getElementById('quickInputMobile')?.value.trim() || '';
+  const software = document.getElementById('quickInputSoftware')?.value || 'None';
+  const funnel = document.getElementById('quickInputFunnel')?.value || 'None';
+  const signal = document.getElementById('quickInputSignal')?.value.trim() || '';
+
+  const isGym = document.getElementById('checkGym')?.checked || false;
+  const isInfluencer = document.getElementById('checkInfluencer')?.checked || false;
+  const hasBrand = document.getElementById('checkBrand')?.checked || true;
+  const isOnline = document.getElementById('checkOnline')?.checked || true;
+  const hasTestimonials = document.getElementById('checkTestimonials')?.checked || true;
+  const hasSoftware = document.getElementById('checkSoftware')?.checked || false;
+  const hasModalities = document.getElementById('checkModalities')?.checked || true;
+  const hasFunnel = document.getElementById('checkFunnel')?.checked || false;
+  const hasChaos = document.getElementById('checkChaos')?.checked || true;
+
+  const leadCandidate = {
+    name,
+    person_name: name,
+    business_name: `${name} Coaching`,
+    role: `${niche} Coach`,
+    niche,
+    social_channel: channel,
+    social_handle: handle,
+    city_country: city,
+    city: city.split(',')[0].trim(),
+    mobile,
+    mobile_number: mobile,
+    coaching_software: software,
+    coaching_software_visible: (hasSoftware || software !== 'None') ? 'YES' : 'NO',
+    application_funnel: funnel,
+    application_funnel_visible: (hasFunnel || funnel !== 'None') ? 'YES' : 'NO',
+    observed_workflow_signal: signal,
+    is_gym_or_studio: isGym,
+    is_generic_influencer: isInfluencer,
+    has_personal_brand: hasBrand,
+    is_online_coaching: isOnline ? 'YES' : 'NO',
+    online_coaching: isOnline,
+    has_client_testimonials: hasTestimonials ? 'YES' : 'NO',
+    multiple_modalities: hasModalities,
+    workflow_chaos_visible: hasChaos,
+    outreach_status: '⏳ Not Contacted'
+  };
+
+  const qual = calculate10PointScore(leadCandidate);
+  const newLead = {
+    ...leadCandidate,
+    id: Date.now(),
+    qualification_score: qual.score,
+    lead_score: qual.score,
+    qualification_tier: qual.tier,
+    priority: qual.score >= 8 ? 'HOT' : (qual.score >= 6 ? 'HIGH' : 'MEDIUM'),
+    reason_for_score: qual.reason_for_score,
+    score_breakdown: qual.breakdown,
+    created_at: new Date().toISOString(),
+    timeline: [
+      {
+        date: new Date().toISOString(),
+        action: 'Prospect Added',
+        notes: `Evaluated ${qual.score}/10 (${qual.tier}). Signal: ${signal}`
+      }
+    ]
+  };
+
+  state.leads.unshift(newLead);
+  persistVaultEdits();
+  closeQuickAddModal();
+  computeAndRenderDashboard();
+  applyFilters();
+  showToast(`Coach "${name}" saved! Qualified: ${qual.score}/10 (${qual.tier})`);
 }
 
 // ================= LEAD DETAIL DRAWER =================
-
 function openLeadDrawer(leadId) {
   const lead = state.leads.find(l => String(l.id) === String(leadId));
   if (!lead) return;
   state.currentLead = lead;
 
-  const setVal = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.value = val !== undefined && val !== null ? val : '';
-  };
-
-  const setText = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val !== undefined && val !== null ? val : '';
-  };
-
-  setText('drawerPersonName', lead.person_name || 'Coach Details');
-  setText('drawerBizRole', `${lead.role || 'Fitness Coach'} • ${lead.city || 'Delhi NCR'} ${lead.business_name ? '(' + lead.business_name + ')' : ''}`);
-
-  const phone = lead.mobile_number || lead.mobile;
-  const normPhone = normalizeDigits(phone);
-  const waBtn = document.getElementById('drawerWaBtn');
-  const callBtn = document.getElementById('drawerCallBtn');
-  if (waBtn) waBtn.href = normPhone ? `https://wa.me/91${normPhone}` : '#';
-  if (callBtn) callBtn.href = phone ? `tel:${phone}` : '#';
-
-  setVal('drawerInputName', lead.person_name);
-  setVal('drawerInputBiz', lead.business_name);
-  setVal('drawerInputRole', lead.role);
-  setVal('drawerInputCity', lead.city);
-  setVal('drawerInputMobile', phone);
-  setVal('drawerInputEmail', lead.email);
-
-  setVal('drawerInputIg', lead.instagram_handle || lead.instagram);
-  setVal('drawerInputWeb', lead.website);
-  setVal('drawerInputMaps', lead.maps_url);
-
-  setVal('drawerInputOnline', lead.online_coaching === true ? 'true' : 'false');
-  setVal('drawerInputClients', lead.client_count || 'Unknown');
-  setVal('drawerInputSystem', lead.current_system || 'WhatsApp');
-
-  setVal('drawerInputScore', lead.lead_score !== undefined ? String(lead.lead_score) : '3');
-  setVal('drawerInputPriority', lead.priority || 'MEDIUM');
-  setVal('drawerInputWhyGood', lead.why_good || '');
-  setVal('drawerInputQualNotes', lead.qualification_notes || '');
-
-  setVal('drawerInputStatus', lead.outreach_status || '⏳ Not Contacted');
-  setVal('drawerInputNextFollowUp', lead.next_follow_up_date ? String(lead.next_follow_up_date).slice(0, 10) : '');
-  setVal('drawerInputCallOutcome', lead.call_outcome || '');
-  setText('drawerLastContactDisplay', lead.last_contact_date ? String(lead.last_contact_date).slice(0, 10) : 'Never');
-  setVal('drawerInputCallNotes', lead.call_notes || '');
-
-  renderDrawerTimeline(lead.timeline || []);
-
   const drawer = document.getElementById('leadDetailDrawer');
-  if (drawer) drawer.classList.add('open');
+  if (!drawer) return;
+
+  const nameEl = document.getElementById('drawerPersonName');
+  const roleEl = document.getElementById('drawerBizRole');
+  const scoreLarge = document.getElementById('drawerScoreLarge');
+  const tierText = document.getElementById('drawerTierText');
+  const reasonText = document.getElementById('drawerReasonText');
+
+  if (nameEl) nameEl.textContent = lead.name || lead.person_name || 'Coach';
+  if (roleEl) roleEl.textContent = `${lead.niche || 'Coach'} • ${lead.social_channel || 'Profile'} • ${lead.city_country || 'India'}`;
+  if (scoreLarge) scoreLarge.textContent = `${lead.qualification_score || 0}/10`;
+  if (tierText) tierText.textContent = lead.qualification_tier === 'HOT PROSPECT' ? '⭐⭐⭐ HOT PROSPECT' : (lead.qualification_tier === 'QUALIFIED' ? '⭐⭐ QUALIFIED COACH' : (lead.qualification_tier === 'DISQUALIFIED' ? '❌ DISQUALIFIED' : '🟡 POTENTIAL'));
+  if (reasonText) reasonText.textContent = lead.reason_for_score || 'Score evaluated against ICP';
+
+  // Social & WA buttons
+  const profileUrl = lead.source_url || (lead.social_handle?.startsWith('http') ? lead.social_handle : `https://instagram.com/${(lead.social_handle || '').replace('@', '')}`);
+  const socBtn = document.getElementById('drawerSocialBtn');
+  if (socBtn) socBtn.href = profileUrl;
+
+  const waBtn = document.getElementById('drawerWaBtn');
+  const normPhone = normalizeDigits(lead.mobile || lead.mobile_number);
+  if (waBtn) waBtn.href = normPhone ? `https://wa.me/91${normPhone}` : '#';
+
+  // Fill inputs
+  const setIn = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val || '';
+  };
+
+  setIn('drawerInputName', lead.name || lead.person_name);
+  setIn('drawerInputNiche', lead.niche);
+  setIn('drawerInputChannel', lead.social_channel);
+  setIn('drawerInputHandle', lead.social_handle);
+  setIn('drawerInputCity', lead.city_country);
+  setIn('drawerInputMobile', lead.mobile || lead.mobile_number);
+  setIn('drawerInputSoftware', lead.coaching_software);
+  setIn('drawerInputFunnel', lead.application_funnel);
+  setIn('drawerInputSignal', lead.observed_workflow_signal);
+  setIn('drawerInputCallNotes', lead.call_notes || lead.general_notes);
+
+  // Status select
+  const statusSel = document.getElementById('drawerInputStatus');
+  if (statusSel) {
+    statusSel.innerHTML = state.settings.statuses.map(st => `
+      <option value="${escapeHtml(st)}" ${lead.outreach_status === st ? 'selected' : ''}>${escapeHtml(st)}</option>
+    `).join('');
+  }
+
+  // Populate drawer checklist
+  renderDrawerChecklist(lead);
+  renderDrawerTimeline(lead);
+
+  drawer.classList.add('active');
+}
+
+function renderDrawerChecklist(lead) {
+  const container = document.getElementById('drawerChecklistContainer');
+  if (!container) return;
+
+  container.innerHTML = `
+    <label class="check-item">
+      <input type="checkbox" id="dCheckBrand" ${lead.has_personal_brand !== false ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong>+2</strong> Personal brand / coach identity</span>
+    </label>
+    <label class="check-item">
+      <input type="checkbox" id="dCheckOnline" ${lead.is_online_coaching === 'YES' || lead.online_coaching ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong>+2</strong> Online / custom coaching offered</span>
+    </label>
+    <label class="check-item">
+      <input type="checkbox" id="dCheckTestimonials" ${lead.has_client_testimonials === 'YES' ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong>+2</strong> Real client testimonials with names</span>
+    </label>
+    <label class="check-item">
+      <input type="checkbox" id="dCheckSoftware" ${lead.coaching_software && !['None', 'Unknown'].includes(lead.coaching_software) ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong>+2</strong> Coaching software visible</span>
+    </label>
+    <label class="check-item">
+      <input type="checkbox" id="dCheckModalities" ${lead.multiple_modalities !== false ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong>+1</strong> Programming complexity</span>
+    </label>
+    <label class="check-item">
+      <input type="checkbox" id="dCheckFunnel" ${lead.application_funnel && !['None', 'Unknown'].includes(lead.application_funnel) ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong>+1</strong> Own application funnel</span>
+    </label>
+    <label class="check-item">
+      <input type="checkbox" id="dCheckChaos" ${lead.workflow_chaos_visible !== false ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong>+2</strong> WhatsApp/Sheets check-in chaos</span>
+    </label>
+    <label class="check-item check-item-danger">
+      <input type="checkbox" id="dCheckGym" ${lead.is_gym_or_studio ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong style="color:#ef4444;">-4</strong> Commercial Gym / Facility</span>
+    </label>
+    <label class="check-item check-item-danger">
+      <input type="checkbox" id="dCheckInfluencer" ${lead.is_generic_influencer ? 'checked' : ''} onchange="updateDrawerLiveScore()">
+      <span><strong style="color:#ef4444;">-3</strong> Generic Influencer / Ebook model</span>
+    </label>
+  `;
+}
+
+function updateDrawerLiveScore() {
+  if (!state.currentLead) return;
+  const isGym = document.getElementById('dCheckGym')?.checked || false;
+  const isInfluencer = document.getElementById('dCheckInfluencer')?.checked || false;
+  const hasBrand = document.getElementById('dCheckBrand')?.checked || false;
+  const isOnline = document.getElementById('dCheckOnline')?.checked || false;
+  const hasTestimonials = document.getElementById('dCheckTestimonials')?.checked || false;
+  const hasSoftware = document.getElementById('dCheckSoftware')?.checked || false;
+  const hasModalities = document.getElementById('dCheckModalities')?.checked || false;
+  const hasFunnel = document.getElementById('dCheckFunnel')?.checked || false;
+  const hasChaos = document.getElementById('dCheckChaos')?.checked || false;
+
+  let raw = 0;
+  if (isGym) raw -= 4;
+  if (isInfluencer) raw -= 3;
+  if (hasBrand && !isGym) raw += 2;
+  if (isOnline) raw += 2;
+  if (hasTestimonials) raw += 2;
+  if (hasSoftware) raw += 2;
+  if (hasModalities) raw += 1;
+  if (hasFunnel) raw += 1;
+  if (hasChaos) raw += 2;
+
+  const finalScore = Math.max(0, Math.min(10, raw));
+  let tier = 'POTENTIAL';
+  if (isGym || isInfluencer || finalScore < 4) tier = 'DISQUALIFIED';
+  else if (finalScore >= 8) tier = 'HOT PROSPECT';
+  else if (finalScore >= 6) tier = 'QUALIFIED';
+
+  const scoreLarge = document.getElementById('drawerScoreLarge');
+  const tierText = document.getElementById('drawerTierText');
+  if (scoreLarge) scoreLarge.textContent = `${finalScore}/10`;
+  if (tierText) tierText.textContent = tier === 'HOT PROSPECT' ? '⭐⭐⭐ HOT PROSPECT' : (tier === 'QUALIFIED' ? '⭐⭐ QUALIFIED' : (tier === 'DISQUALIFIED' ? '❌ DISQUALIFIED' : '🟡 POTENTIAL'));
+}
+
+function saveLeadFromDrawer() {
+  if (!state.currentLead) return;
+
+  const lead = state.currentLead;
+  lead.name = document.getElementById('drawerInputName')?.value.trim() || lead.name;
+  lead.person_name = lead.name;
+  lead.niche = document.getElementById('drawerInputNiche')?.value || lead.niche;
+  lead.social_channel = document.getElementById('drawerInputChannel')?.value || lead.social_channel;
+  lead.social_handle = document.getElementById('drawerInputHandle')?.value || lead.social_handle;
+  lead.city_country = document.getElementById('drawerInputCity')?.value || lead.city_country;
+  lead.mobile = document.getElementById('drawerInputMobile')?.value || lead.mobile;
+  lead.mobile_number = lead.mobile;
+  lead.coaching_software = document.getElementById('drawerInputSoftware')?.value || lead.coaching_software;
+  lead.application_funnel = document.getElementById('drawerInputFunnel')?.value || lead.application_funnel;
+  lead.observed_workflow_signal = document.getElementById('drawerInputSignal')?.value || lead.observed_workflow_signal;
+  lead.outreach_status = document.getElementById('drawerInputStatus')?.value || lead.outreach_status;
+  lead.call_notes = document.getElementById('drawerInputCallNotes')?.value || '';
+
+  lead.is_gym_or_studio = document.getElementById('dCheckGym')?.checked || false;
+  lead.is_generic_influencer = document.getElementById('dCheckInfluencer')?.checked || false;
+  lead.has_personal_brand = document.getElementById('dCheckBrand')?.checked || true;
+  lead.is_online_coaching = document.getElementById('dCheckOnline')?.checked ? 'YES' : 'NO';
+  lead.online_coaching = document.getElementById('dCheckOnline')?.checked || false;
+  lead.has_client_testimonials = document.getElementById('dCheckTestimonials')?.checked ? 'YES' : 'NO';
+  lead.multiple_modalities = document.getElementById('dCheckModalities')?.checked || false;
+  lead.workflow_chaos_visible = document.getElementById('dCheckChaos')?.checked || false;
+
+  const qual = calculate10PointScore(lead);
+  lead.qualification_score = qual.score;
+  lead.lead_score = qual.score;
+  lead.qualification_tier = qual.tier;
+  lead.reason_for_score = qual.reason_for_score;
+
+  persistVaultEdits();
+  closeLeadDrawer();
+  computeAndRenderDashboard();
+  applyFilters();
+  showToast('Coach dossier updated successfully.');
 }
 
 function closeLeadDrawer() {
   const drawer = document.getElementById('leadDetailDrawer');
-  if (drawer) drawer.classList.remove('open');
+  if (drawer) drawer.classList.remove('active');
   state.currentLead = null;
 }
 
@@ -1013,699 +1304,344 @@ function closeDrawerOnOverlay(e) {
   }
 }
 
-function renderDrawerTimeline(events) {
+function closeModalOnOverlay(e, modalId) {
+  if (e.target.id === modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active');
+  }
+}
+
+function handleDeleteDrawerLead() {
+  if (!state.currentLead) return;
+  if (!confirm(`Are you sure you want to delete "${state.currentLead.name}"?`)) return;
+
+  state.leads = state.leads.filter(l => l.id !== state.currentLead.id);
+  persistVaultEdits();
+  closeLeadDrawer();
+  computeAndRenderDashboard();
+  applyFilters();
+  showToast('Lead deleted from vault.');
+}
+
+function handleStatusChange(leadId, newStatus) {
+  const lead = state.leads.find(l => String(l.id) === String(leadId));
+  if (!lead) return;
+  lead.outreach_status = newStatus;
+  lead.last_contact_date = new Date().toISOString();
+  persistVaultEdits();
+  computeAndRenderDashboard();
+  applyFilters();
+  showToast(`Status updated to "${newStatus}"`);
+}
+
+function renderDrawerTimeline(lead) {
   const list = document.getElementById('drawerTimelineList');
   if (!list) return;
-
-  if (!events || events.length === 0) {
-    list.innerHTML = `<div style="font-size: 11px; color: var(--text-dim); padding: 8px 0;">No activities logged yet.</div>`;
+  list.innerHTML = '';
+  const items = lead.timeline || [];
+  if (!items.length) {
+    list.innerHTML = '<div style="font-size: 11px; color: var(--text-dim);">No activity logged yet.</div>';
     return;
   }
 
-  list.innerHTML = events.slice().reverse().map(ev => `
-    <div class="timeline-item">
-      <div class="timeline-date">${escapeHtml(ev.timestamp || ev.date ? String(ev.timestamp || ev.date).slice(0, 16).replace('T', ' ') : '')}</div>
-      <div class="timeline-content">
-        <strong>${escapeHtml(ev.action || 'Activity')}</strong>
-        ${ev.notes ? ` — ${escapeHtml(ev.notes)}` : ''}
+  items.slice().reverse().forEach(item => {
+    list.innerHTML += `
+      <div class="timeline-item" style="border-left: 2px solid var(--border); padding-left: 10px; margin-bottom: 8px;">
+        <div style="font-size: 10px; color: var(--text-dim);">${new Date(item.date).toLocaleDateString()}</div>
+        <div style="font-weight: 700; color: #fff; font-size: 11px;">${escapeHtml(item.action)}</div>
+        <div style="font-size: 11px; color: var(--text-secondary);">${escapeHtml(item.notes || '')}</div>
       </div>
-    </div>
-  `).join('');
+    `;
+  });
 }
 
 function handleAddTimelineEvent() {
   if (!state.currentLead) return;
   const input = document.getElementById('drawerNewTimelineAction');
-  const actionText = input ? input.value.trim() : '';
-  if (!actionText) return;
+  if (!input || !input.value.trim()) return;
 
-  const newEvent = {
-    action: actionText,
-    timestamp: new Date().toISOString()
+  const event = {
+    date: new Date().toISOString(),
+    action: input.value.trim(),
+    notes: 'Logged by founder'
   };
 
-  const updatedTimeline = [...(state.currentLead.timeline || []), newEvent];
-  state.currentLead.timeline = updatedTimeline;
-  state.currentLead.last_contact_date = new Date().toISOString();
-
-  renderDrawerTimeline(state.currentLead.timeline);
+  if (!state.currentLead.timeline) state.currentLead.timeline = [];
+  state.currentLead.timeline.push(event);
   input.value = '';
-  showToast('Activity logged');
-  saveVaultLocally();
-}
-
-function saveLeadFromDrawer() {
-  if (!state.currentLead) return;
-
-  const getVal = id => {
-    const el = document.getElementById(id);
-    return el ? el.value.trim() : '';
-  };
-
-  const phone = getVal('drawerInputMobile');
-  state.currentLead.person_name = getVal('drawerInputName');
-  state.currentLead.business_name = getVal('drawerInputBiz');
-  state.currentLead.role = getVal('drawerInputRole');
-  state.currentLead.city = getVal('drawerInputCity');
-  state.currentLead.mobile = phone;
-  state.currentLead.mobile_number = phone;
-  state.currentLead.email = getVal('drawerInputEmail');
-  state.currentLead.instagram = getVal('drawerInputIg');
-  state.currentLead.instagram_handle = getVal('drawerInputIg');
-  state.currentLead.website = getVal('drawerInputWeb');
-  state.currentLead.maps_url = getVal('drawerInputMaps');
-  state.currentLead.online_coaching = getVal('drawerInputOnline') === 'true';
-  state.currentLead.client_count = getVal('drawerInputClients');
-  state.currentLead.current_system = getVal('drawerInputSystem');
-  state.currentLead.lead_score = parseInt(getVal('drawerInputScore'), 10) || 0;
-  state.currentLead.priority = getVal('drawerInputPriority');
-  state.currentLead.why_good = getVal('drawerInputWhyGood');
-  state.currentLead.qualification_notes = getVal('drawerInputQualNotes');
-  state.currentLead.outreach_status = getVal('drawerInputStatus');
-  state.currentLead.next_follow_up_date = getVal('drawerInputNextFollowUp') || null;
-  state.currentLead.call_outcome = getVal('drawerInputCallOutcome');
-  state.currentLead.call_notes = getVal('drawerInputCallNotes');
-  state.currentLead.updated_at = new Date().toISOString();
-
-  closeLeadDrawer();
-  saveVaultLocally();
-  showToast('✅ Lead details updated');
-  computeAndRenderDashboard();
-  applyFilters();
-}
-
-function handleDeleteDrawerLead() {
-  if (!state.currentLead) return;
-  const ok = confirm(`Are you sure you want to permanently delete lead "${state.currentLead.person_name}"?`);
-  if (!ok) return;
-
-  state.leads = state.leads.filter(l => String(l.id) !== String(state.currentLead.id));
-  closeLeadDrawer();
-  saveVaultLocally();
-  showToast('Lead deleted');
-  computeAndRenderDashboard();
-  applyFilters();
-}
-
-// ================= INLINE STATUS & ACTIONS =================
-
-function handleStatusChange(leadId, newStatus) {
-  const lead = state.leads.find(l => String(l.id) === String(leadId));
-  if (!lead) return;
-
-  lead.outreach_status = newStatus;
-  lead.last_contact_date = new Date().toISOString();
-  lead.timeline = [...(lead.timeline || []), {
-    action: `Status changed to "${newStatus}"`,
-    timestamp: new Date().toISOString()
-  }];
-
-  saveVaultLocally();
-  showToast(`Status updated: ${newStatus}`);
-  computeAndRenderDashboard();
-  applyFilters();
-}
-
-function trackLeadAction(leadId, actionName) {
-  const lead = state.leads.find(l => String(l.id) === String(leadId));
-  if (!lead) return;
-
-  lead.last_contact_date = new Date().toISOString();
-  lead.timeline = [...(lead.timeline || []), {
-    action: actionName,
-    timestamp: new Date().toISOString()
-  }];
-
-  if (lead.outreach_status === '⏳ Not Contacted') {
-    lead.outreach_status = '📤 Sent';
-  }
-
-  saveVaultLocally();
-  computeAndRenderDashboard();
-}
-
-// ================= QUICK ADD MODAL & DUPLICATE CHECK =================
-
-function openQuickAddModal() {
-  const modal = document.getElementById('quickAddModal');
-  const alertBox = document.getElementById('quickAddDupAlert');
-  if (alertBox) alertBox.style.display = 'none';
-  if (modal) modal.style.display = 'flex';
-
-  const mobileInput = document.getElementById('quickInputMobile');
-  if (mobileInput && !mobileInput.dataset.listenerBound) {
-    mobileInput.dataset.listenerBound = 'true';
-    mobileInput.addEventListener('input', checkQuickAddDuplicate);
-  }
-
-  const igInput = document.getElementById('quickInputIg');
-  if (igInput && !igInput.dataset.listenerBound) {
-    igInput.dataset.listenerBound = 'true';
-    igInput.addEventListener('input', checkQuickAddDuplicate);
-  }
-}
-
-function closeQuickAddModal() {
-  const modal = document.getElementById('quickAddModal');
-  if (modal) modal.style.display = 'none';
-  const form = document.getElementById('quickAddForm');
-  if (form) form.reset();
-}
-
-function checkQuickAddDuplicate() {
-  const phone = normalizeDigits(document.getElementById('quickInputMobile')?.value || '');
-  const ig = (document.getElementById('quickInputIg')?.value || '').toLowerCase().replace(/[@\s]/g, '');
-  const alertBox = document.getElementById('quickAddDupAlert');
-
-  if (!phone && !ig) {
-    if (alertBox) alertBox.style.display = 'none';
-    return;
-  }
-
-  const dup = state.leads.find(l => {
-    const lPhone = normalizeDigits(l.mobile_number || l.mobile);
-    const lIg = (l.instagram_handle || l.instagram || '').toLowerCase().replace(/[@\s]/g, '');
-    return (phone && lPhone && lPhone === phone) || (ig && lIg && lIg === ig);
-  });
-
-  if (dup) {
-    if (alertBox) {
-      alertBox.innerHTML = `⚠️ <strong>Duplicate Warning:</strong> "${escapeHtml(dup.person_name)}" (${escapeHtml(dup.city)}) already exists in CRM (${escapeHtml(dup.outreach_status)}).`;
-      alertBox.style.display = 'block';
-    }
-  } else {
-    if (alertBox) alertBox.style.display = 'none';
-  }
-}
-
-function handleQuickAddSubmit(e) {
-  if (e) e.preventDefault();
-  const getVal = id => document.getElementById(id)?.value.trim() || '';
-
-  const phone = getVal('quickInputMobile');
-  const normPhone = normalizeDigits(phone);
-  const ig = getVal('quickInputIg');
-
-  // Compute lead score
-  let score = 3;
-  if (document.getElementById('checkAthlete')?.checked) score += 1;
-  if (document.getElementById('checkOnline')?.checked) score += 1;
-  score = Math.min(5, score);
-
-  const newLead = {
-    id: Date.now(),
-    person_name: getVal('quickInputName'),
-    business_name: getVal('quickInputBiz') || getVal('quickInputName'),
-    role: getVal('quickInputRole'),
-    city: getVal('quickInputCity') || 'Delhi NCR',
-    state: getVal('quickInputState') || 'Delhi',
-    mobile: phone,
-    mobile_number: phone,
-    phone_normalized: normPhone,
-    whatsapp_link: `https://wa.me/91${normPhone}`,
-    instagram: ig,
-    instagram_handle: ig,
-    website: getVal('quickInputWeb'),
-    maps_url: getVal('quickInputMaps'),
-    online_coaching: document.getElementById('checkOnline')?.checked || false,
-    athlete_types: document.getElementById('checkAthlete')?.checked ? ['Athletes / Sports'] : ['General Fitness'],
-    current_system: document.getElementById('checkCustom')?.checked ? 'Custom Program' : 'WhatsApp',
-    client_count: document.getElementById('checkMultiple')?.checked ? '4-10' : '1-3',
-    lead_score: score,
-    priority: score >= 4 ? 'HOT' : 'HIGH',
-    outreach_status: '⏳ Not Contacted',
-    source: 'Google Maps',
-    campaign: 'Delhi NCR Founder Outreach',
-    timeline: [
-      {
-        action: 'Lead Captured (Google Maps)',
-        timestamp: new Date().toISOString()
-      }
-    ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-
-  state.leads.unshift(newLead);
-  saveVaultLocally();
-  closeQuickAddModal();
-  showToast(`⚡ Added "${newLead.person_name}" to CRM!`);
-  computeAndRenderDashboard();
-  applyFilters();
-}
-
-// ================= SMART OUTREACH PITCH GENERATOR =================
-
-const pitchTemplates = {
-  sc: {
-    name: 'Strength & Conditioning Coach',
-    text: `Hi {{name}}, loved seeing your work with athletes in {{city}}!
-
-I’m building COREATHLETE specifically for high-performance S&C coaches who program custom strength, power, and conditioning blocks.
-
-Unlike generic fitness apps made for casual gym-goers, COREATHLETE gives you:
-- Athlete readiness & load monitoring
-- 1-click workout programming built for strength progressions
-- Clean athlete compliance tracking without messy spreadsheets
-
-Would love to send over a quick 90-second video walkthrough if you’re open to exploring it?`
-  },
-  online: {
-    name: 'Online Fitness Coach',
-    text: `Hey {{name}}, came across your coaching page on Instagram!
-
-Quick question: are you currently managing your online clients through Google Sheets and WhatsApp, or using an app like Trainerize?
-
-We built COREATHLETE to help online coaches deliver higher-touch athlete programming in 70% less time — with direct video form checks, automated progression logs, and zero app bloat.
-
-Are you taking on new clients right now? Happy to share a 2-min preview.`
-  },
-  strength: {
-    name: 'Strength / Powerlifting Coach',
-    text: `Hi {{name}}, noticed your focus on heavy strength training and powerlifting athletes in {{city}}.
-
-Most strength coaches tell us they hate generic fitness apps because they can’t handle RPE-based periodization, percentage-based loading, or barbell progression curves properly.
-
-We designed COREATHLETE specifically to solve this for serious strength practitioners.
-
-Would you be open to checking out a quick demo?`
-  },
-  combat: {
-    name: 'Combat Sports Coach (MMA/Boxing)',
-    text: `Hey {{name}}, huge respect for your combat athletes' conditioning work in {{city}}!
-
-We’ve been collaborating with combat sports & MMA coaches to build a dedicated athlete management tool that tracks fight camp volume, conditioning intervals, and athlete recovery without the clutter of bodybuilding apps.
-
-Would love to get your thoughts on a 2-minute video walkthrough if you have a moment!`
-  },
-  endurance: {
-    name: 'Endurance / Running Coach',
-    text: `Hi {{name}}, saw your endurance & running coaching programs in {{city}}!
-
-Managing athlete weekly mileage, cadence zones, and supplementary strength work in one place is usually a nightmare across Excel and Strava.
-
-COREATHLETE combines strength programming with endurance metric tracking so your runners peak safely.
-
-Let me know if you’d like to see how other coaches are using it!`
-  },
-  nutritionist: {
-    name: 'Sports Dietitian / Nutritionist',
-    text: `Hi {{name}}, came across your sports nutrition & performance dietetics work in {{city}}!
-
-We’re onboarding sports dietitians onto COREATHLETE to help them coordinate directly with their athletes' training loads and macro adherence in real time.
-
-Would love to share a quick preview of how it streamlines athlete check-ins!`
-  }
-};
-
-function openSmartPitchModal(leadId) {
-  const lead = leadId ? state.leads.find(l => String(l.id) === String(leadId)) : state.currentLead;
-  state.currentPitchLead = lead || null;
-
-  const select = document.getElementById('pitchTemplateSelect');
-  if (lead && select) {
-    const roleLower = (lead.role || '').toLowerCase();
-    if (roleLower.includes('s&c') || roleLower.includes('strength & conditioning') || roleLower.includes('performance')) {
-      select.value = 'sc';
-    } else if (roleLower.includes('online')) {
-      select.value = 'online';
-    } else if (roleLower.includes('combat') || roleLower.includes('mma') || roleLower.includes('boxing')) {
-      select.value = 'combat';
-    } else if (roleLower.includes('running') || roleLower.includes('endurance')) {
-      select.value = 'endurance';
-    } else if (roleLower.includes('nutrition') || roleLower.includes('diet')) {
-      select.value = 'nutritionist';
-    } else {
-      select.value = 'sc';
-    }
-  }
-
-  generatePitchText();
-  const modal = document.getElementById('smartPitchModal');
-  if (modal) modal.style.display = 'flex';
-}
-
-function closeSmartPitchModal() {
-  const modal = document.getElementById('smartPitchModal');
-  if (modal) modal.style.display = 'none';
-}
-
-function generatePitchText() {
-  const templateKey = document.getElementById('pitchTemplateSelect')?.value || 'sc';
-  const tpl = pitchTemplates[templateKey] || pitchTemplates.sc;
-  const lead = state.currentPitchLead || {};
-
-  const firstName = lead.person_name ? lead.person_name.split(' ')[0] : 'Coach';
-  const city = lead.city || 'Delhi NCR';
-  const business = lead.business_name || 'your coaching brand';
-
-  let text = tpl.text
-    .replace(/\{\{name\}\}/g, firstName)
-    .replace(/\{\{city\}\}/g, city)
-    .replace(/\{\{business\}\}/g, business);
-
-  const txtArea = document.getElementById('smartPitchText');
-  if (txtArea) txtArea.value = text;
-}
-
-function copyPitchFromModal() {
-  const txtArea = document.getElementById('smartPitchText');
-  if (!txtArea) return;
-  navigator.clipboard.writeText(txtArea.value).then(() => {
-    showToast('📋 Pitch copied to clipboard!');
-    if (state.currentPitchLead) {
-      trackLeadAction(state.currentPitchLead.id, 'Copied Smart Pitch');
-    }
-  }).catch(() => {
-    txtArea.select();
-    document.execCommand('copy');
-    showToast('📋 Pitch copied!');
-  });
-}
-
-// ================= LOCAL VAULT ENCRYPTION & SAVE =================
-
-async function saveVaultLocally() {
-  if (!state.isUnlocked || !state.activePassword) return;
-
-  try {
-    const enc = new TextEncoder();
-    const passKey = await window.crypto.subtle.importKey(
-      'raw',
-      enc.encode(state.activePassword),
-      'PBKDF2',
-      false,
-      ['deriveKey']
-    );
-
-    const salt = window.crypto.getRandomValues(new Uint8Array(16));
-    const iv = window.crypto.getRandomValues(new Uint8Array(12));
-
-    const derivedKey = await window.crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      passKey,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt']
-    );
-
-    const plaintext = JSON.stringify(state.leads);
-    const encryptedBuf = await window.crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      derivedKey,
-      enc.encode(plaintext)
-    );
-
-    // In Web Crypto API AES-GCM, the last 16 bytes are the auth tag
-    const totalBytes = new Uint8Array(encryptedBuf);
-    const cipherBytes = totalBytes.slice(0, totalBytes.length - 16);
-    const tagBytes = totalBytes.slice(totalBytes.length - 16);
-
-    const bufToHex = b => Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
-    const bufToBase64 = b => window.btoa(String.fromCharCode(...b));
-
-    const newVault = {
-      version: 1,
-      algorithm: 'AES-256-GCM',
-      kdf: 'PBKDF2',
-      iterations: 100000,
-      hash: 'SHA-256',
-      salt: bufToHex(salt),
-      iv: bufToHex(iv),
-      tag: bufToHex(tagBytes),
-      ciphertext: bufToBase64(cipherBytes)
-    };
-
-    localStorage.setItem('ca_encrypted_vault', JSON.stringify(newVault));
-  } catch (e) {
-    console.error('Failed to save vault locally:', e);
-  }
-}
-
-// ================= EXPORT & IMPORT =================
-
-function openExportModal() {
-  const modal = document.getElementById('exportModal');
-  if (modal) modal.style.display = 'flex';
-}
-
-function closeExportModal() {
-  const modal = document.getElementById('exportModal');
-  if (modal) modal.style.display = 'none';
-}
-
-function triggerExport(type) {
-  let exportData = [];
-
-  if (type === 'all') {
-    exportData = state.leads;
-  } else if (type === 'filtered') {
-    exportData = state.filteredLeads;
-  } else if (type === 'hot') {
-    exportData = state.leads.filter(l => l.priority === 'HOT' || l.lead_score >= 4);
-  } else if (type === 'followups') {
-    const today = new Date().toISOString().slice(0, 10);
-    exportData = state.leads.filter(l => l.next_follow_up_date && String(l.next_follow_up_date).slice(0, 10) <= today);
-  } else if (type === 'interested') {
-    exportData = state.leads.filter(l => l.outreach_status === '⭐ Interested');
-  }
-
-  if (exportData.length === 0) {
-    alert('No leads found for selected export criteria.');
-    return;
-  }
-
-  downloadCsv(exportData, `coreathlete_leads_${type}_${new Date().toISOString().slice(0, 10)}.csv`);
-  closeExportModal();
-  showToast(`Exported ${exportData.length} leads to CSV`);
-}
-
-function downloadCsv(leads, filename) {
-  const headers = [
-    'Person Name', 'Business', 'Role', 'City', 'State', 'Mobile',
-    'WhatsApp', 'Instagram', 'Website', 'Lead Score', 'Priority',
-    'Outreach Status', 'Current System', 'Client Count', 'Next Follow Up',
-    'Last Contact', 'Call Notes'
-  ];
-
-  const escapeCsv = val => {
-    if (val === null || val === undefined) return '""';
-    const str = String(val).replace(/"/g, '""');
-    return `"${str}"`;
-  };
-
-  const rows = leads.map(l => [
-    escapeCsv(l.person_name),
-    escapeCsv(l.business_name),
-    escapeCsv(l.role),
-    escapeCsv(l.city),
-    escapeCsv(l.state),
-    escapeCsv(l.mobile_number || l.mobile),
-    escapeCsv(l.whatsapp_number || l.mobile_number || l.mobile),
-    escapeCsv(l.instagram_handle || l.instagram),
-    escapeCsv(l.website),
-    escapeCsv(l.lead_score),
-    escapeCsv(l.priority),
-    escapeCsv(l.outreach_status),
-    escapeCsv(l.current_system),
-    escapeCsv(l.client_count),
-    escapeCsv(l.next_follow_up_date),
-    escapeCsv(l.last_contact_date),
-    escapeCsv(l.call_notes)
-  ].join(','));
-
-  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function openImportModal() {
-  const modal = document.getElementById('importModal');
-  const summary = document.getElementById('importPreviewSummary');
-  if (summary) summary.style.display = 'none';
-  if (modal) modal.style.display = 'flex';
-}
-
-function closeImportModal() {
-  const modal = document.getElementById('importModal');
-  if (modal) modal.style.display = 'none';
-}
-
-function parsePastedCsv(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, '').toLowerCase());
-  const rows = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const matches = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
-    const obj = {};
-    headers.forEach((h, idx) => {
-      let val = matches[idx] ? matches[idx].trim().replace(/^["']|["']$/g, '') : '';
-      if (h.includes('name')) obj.person_name = val;
-      else if (h.includes('biz') || h.includes('business') || h.includes('gym')) obj.business_name = val;
-      else if (h.includes('role')) obj.role = val;
-      else if (h.includes('city')) obj.city = val;
-      else if (h.includes('mobile') || h.includes('phone')) obj.mobile_number = val;
-      else if (h.includes('insta')) obj.instagram_handle = val;
-      else if (h.includes('web')) obj.website = val;
-    });
-    if (obj.person_name && (obj.mobile_number || obj.instagram_handle)) {
-      rows.push(obj);
-    }
-  }
-  return rows;
-}
-
-function handleImportPreview() {
-  const text = document.getElementById('importCsvText')?.value || '';
-  const rows = parsePastedCsv(text);
-  const summary = document.getElementById('importPreviewSummary');
-  if (!summary) return;
-
-  if (rows.length === 0) {
-    summary.innerHTML = '<span style="color: #ef4444;">No valid lead rows detected in pasted CSV.</span>';
-    summary.style.display = 'block';
-    return;
-  }
-
-  let dupCount = 0;
-  let validCount = 0;
-
-  rows.forEach(r => {
-    const phone = normalizeDigits(r.mobile_number);
-    const ig = (r.instagram_handle || '').toLowerCase().replace(/[@\s]/g, '');
-    const isDup = state.leads.some(l => {
-      const lPhone = normalizeDigits(l.mobile_number || l.mobile);
-      const lIg = (l.instagram_handle || l.instagram || '').toLowerCase().replace(/[@\s]/g, '');
-      return (phone && lPhone && lPhone === phone) || (ig && lIg && lIg === ig);
-    });
-
-    if (isDup) dupCount++;
-    else validCount++;
-  });
-
-  summary.innerHTML = `
-    <div style="font-weight: 700; color: #38bdf8; margin-bottom: 4px;">CSV Parse Result:</div>
-    <div>Total rows found: <strong>${rows.length}</strong></div>
-    <div>Valid new leads: <strong style="color: var(--lime);">${validCount}</strong></div>
-    <div>Duplicates detected: <strong style="color: #f59e0b;">${dupCount}</strong></div>
-  `;
-  summary.style.display = 'block';
-}
-
-function handleImportCommit() {
-  const text = document.getElementById('importCsvText')?.value || '';
-  const rows = parsePastedCsv(text);
-  if (rows.length === 0) {
-    alert('Please enter valid CSV data first.');
-    return;
-  }
-
-  let importedCount = 0;
-  rows.forEach(r => {
-    const phone = normalizeDigits(r.mobile_number);
-    const ig = (r.instagram_handle || '').toLowerCase().replace(/[@\s]/g, '');
-    const isDup = state.leads.some(l => {
-      const lPhone = normalizeDigits(l.mobile_number || l.mobile);
-      const lIg = (l.instagram_handle || l.instagram || '').toLowerCase().replace(/[@\s]/g, '');
-      return (phone && lPhone && lPhone === phone) || (ig && lIg && lIg === ig);
-    });
-
-    if (!isDup) {
-      state.leads.unshift({
-        id: Date.now() + Math.random(),
-        person_name: r.person_name,
-        business_name: r.business_name || r.person_name,
-        role: r.role || 'Fitness Coach',
-        city: r.city || 'Delhi NCR',
-        mobile: r.mobile_number,
-        mobile_number: r.mobile_number,
-        phone_normalized: phone,
-        instagram: r.instagram_handle,
-        instagram_handle: r.instagram_handle,
-        website: r.website || '',
-        lead_score: 3,
-        priority: 'MEDIUM',
-        outreach_status: '⏳ Not Contacted',
-        created_at: new Date().toISOString(),
-        timeline: [{ action: 'Imported via CSV', timestamp: new Date().toISOString() }]
-      });
-      importedCount++;
-    }
-  });
-
-  closeImportModal();
-  saveVaultLocally();
-  showToast(`✅ Successfully imported ${importedCount} new leads!`);
-  computeAndRenderDashboard();
-  applyFilters();
-}
-
-// ================= ANALYTICS =================
-
-function renderAnalytics() {
-  if (!state.stats) return;
-
-  const renderBreakdown = (containerId, dataObj) => {
-    const el = document.getElementById(containerId);
-    if (!el || !dataObj) return;
-
-    const entries = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
-    if (entries.length === 0) {
-      el.innerHTML = '<div style="color: var(--text-dim); font-size: 11px;">No data recorded yet.</div>';
-      return;
-    }
-
-    el.innerHTML = entries.map(([key, count]) => `
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px;">
-        <span style="color: var(--text-primary);">${escapeHtml(key)}</span>
-        <span style="font-weight: 700; color: var(--lime);">${count}</span>
-      </div>
-    `).join('');
-  };
-
-  renderBreakdown('analyticsCityBreakdown', state.stats.countsByCity);
-  renderBreakdown('analyticsRoleBreakdown', state.stats.countsByRole);
-  renderBreakdown('analyticsCampaignBreakdown', state.stats.countsByCampaign);
-  renderBreakdown('analyticsSourceBreakdown', state.stats.countsBySource);
-}
-
-// ================= MODAL & COPY HELPERS =================
-
-function closeModalOnOverlay(e, modalId) {
-  if (e.target.id === modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) modal.style.display = 'none';
-  }
-}
-
-function copyPhone(phone) {
-  if (!phone) return;
-  navigator.clipboard.writeText(phone).then(() => {
-    showToast(`📋 Copied: ${phone}`);
-  }).catch(() => {
-    showToast(`Phone: ${phone}`);
-  });
+  renderDrawerTimeline(state.currentLead);
+  persistVaultEdits();
+  showToast('Timeline activity logged.');
 }
 
 function copyDrawerPhone() {
   if (!state.currentLead) return;
-  copyPhone(state.currentLead.mobile_number || state.currentLead.mobile);
+  const phone = state.currentLead.mobile || state.currentLead.mobile_number;
+  if (!phone) {
+    showToast('No contact number available.', true);
+    return;
+  }
+  navigator.clipboard.writeText(phone).then(() => {
+    showToast(`Copied ${phone}`);
+  });
 }
 
-// Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+// ================= SMART COACH ADAPTATION PITCH MODAL =================
+function openSmartPitchModal(leadId) {
+  const targetLead = leadId ? state.leads.find(l => String(l.id) === String(leadId)) : (state.currentLead || state.leads[0]);
+  if (targetLead) state.currentLead = targetLead;
+
+  const modal = document.getElementById('smartPitchModal');
+  if (!modal) return;
+  modal.classList.add('active');
+  generatePitchText();
+}
+
+function closeSmartPitchModal() {
+  const modal = document.getElementById('smartPitchModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function generatePitchText() {
+  const templateSelect = document.getElementById('pitchTemplateSelect');
+  const textarea = document.getElementById('smartPitchText');
+  if (!templateSelect || !textarea) return;
+
+  const lead = state.currentLead || { name: 'Coach', niche: 'Strength & Conditioning', observed_workflow_signal: 'check-in spreadsheets' };
+  const coachFirstName = (lead.name || lead.person_name || 'Coach').split(' ')[0];
+  const niche = lead.niche || 'strength & conditioning';
+  const signal = lead.observed_workflow_signal || 'managing check-ins across WhatsApp';
+  const angle = templateSelect.value;
+
+  let pitch = '';
+
+  if (angle === 'adaptation_chaos') {
+    pitch = `Hey ${coachFirstName}, came across your profile and really respect your approach to ${niche} programming.\n\nSaw that you handle your check-ins and athlete reviews actively (${signal}). As athlete load grows, wrestling with Google Sheets, WhatsApp audio notes, and fragmented logs becomes an exhausting bottleneck.\n\nWe built COREATHLETE — an Elite Coach OS designed specifically around continuous adaptation: Athlete Brain → Execution Logs → Signals → Coach Review → Instant Program Adaptation.\n\nWe're inviting 10 top independent coaches to our private beta. Would you be open to checking out a 3-minute preview?`;
+  } else if (angle === 'sc_athletes') {
+    pitch = `Hi ${coachFirstName}, love the programming depth you share for your athletes.\n\nMost coaching platforms (Trainerize/TrueCoach) were built for generic workouts and completely break down when programming dual blocks for serious athletes (combining sport agility, velocity work, and heavy barbell cycles).\n\nWe engineered COREATHLETE specifically for high-level S&C and performance coaches who need true multi-block periodization and automated load adaptation based on athlete feedback.\n\nWould love to show you our private founder preview if you're open to it!`;
+  } else if (angle === 'hyrox_endurance') {
+    pitch = `Hey ${coachFirstName}, noticed your work coaching HYROX and concurrent endurance athletes!\n\nBalancing running pacing splits with heavy strength circuits is one of the hardest workflows to manage in standard apps or spreadsheets. Coaches usually end up drowning in WhatsApp check-ins just adjusting deloads.\n\nAt COREATHLETE, our Coach OS tracks both aerobic pacing and barbell strength signals to automate program adaptations without losing coach control.\n\nWould you be open to testing our private beta for your HYROX roster?`;
+  } else if (angle === 'trainerize_migration') {
+    pitch = `Hey ${coachFirstName}, quick question — are you running your athletes primarily on Trainerize or TrueCoach right now?\n\nAlmost every high-tier coach we speak with complains that those platforms feel like rigid 2016 workout builders: slow compliance tracking, zero intelligent adaptation, and constant spreadsheet side-tracking.\n\nWe built COREATHLETE to solve that exact workflow friction for independent coaches managing 15–40 clients.\n\nHappy to send over a private demo link if you're curious!`;
+  } else {
+    pitch = `Hi ${coachFirstName}, I'm Lucky, founder at COREATHLETE.\n\nWe're developing an elite Coach OS for independent professional coaches in India — replacing chaotic WhatsApp check-ins and Google Sheets with an automated feedback-to-adaptation workflow.\n\nBecause of your reputation in ${niche}, I would love to get your raw feedback on what we've built. Would you be open to a quick 5-min walk-through this week?`;
+  }
+
+  textarea.value = pitch.replace(/\\n/g, '\n');
+}
+
+function copyPitchFromModal() {
+  const textarea = document.getElementById('smartPitchText');
+  if (!textarea) return;
+  navigator.clipboard.writeText(textarea.value).then(() => {
+    showToast('Coach pitch copied to clipboard!');
+  }).catch(() => {
+    showToast('Copy failed.', true);
+  });
+}
+
+// ================= EXPORT & IMPORT =================
+function openExportModal() {
+  const modal = document.getElementById('exportModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeExportModal() {
+  const modal = document.getElementById('exportModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function triggerExport(type) {
+  let exportData = [];
+  if (type === 'hot') {
+    exportData = state.leads.filter(l => l.qualification_tier === 'HOT PROSPECT');
+  } else if (type === 'qualified') {
+    exportData = state.leads.filter(l => ['HOT PROSPECT', 'QUALIFIED'].includes(l.qualification_tier));
+  } else if (type === 'filtered') {
+    exportData = state.filteredLeads;
+  } else {
+    exportData = state.leads;
+  }
+
+  if (!exportData.length) {
+    showToast('No coaches to export for selected view.', true);
+    return;
+  }
+
+  const headers = [
+    'ID', 'Name', 'Social Channel', 'Social Handle', 'City/Country', 'Priority Niche',
+    'Online Coaching', 'Custom Programming', 'Coaching Software', 'Application Funnel',
+    'Observed Workflow Signal', '10-Pt Score', 'Tier', 'Status', 'Mobile', 'Source URL'
+  ];
+
+  const csvRows = [headers.join(',')];
+
+  exportData.forEach(l => {
+    const row = [
+      l.id,
+      `"${(l.name || l.person_name || '').replace(/"/g, '""')}"`,
+      `"${(l.social_channel || '').replace(/"/g, '""')}"`,
+      `"${(l.social_handle || '').replace(/"/g, '""')}"`,
+      `"${(l.city_country || '').replace(/"/g, '""')}"`,
+      `"${(l.niche || '').replace(/"/g, '""')}"`,
+      `"${l.is_online_coaching || 'Unknown'}"`,
+      `"${l.is_custom_programming || 'Unknown'}"`,
+      `"${(l.coaching_software || '').replace(/"/g, '""')}"`,
+      `"${(l.application_funnel || '').replace(/"/g, '""')}"`,
+      `"${(l.observed_workflow_signal || '').replace(/"/g, '""')}"`,
+      l.qualification_score || 0,
+      `"${l.qualification_tier || 'POTENTIAL'}"`,
+      `"${(l.outreach_status || '').replace(/"/g, '""')}"`,
+      `"${(l.mobile || l.mobile_number || '').replace(/"/g, '""')}"`,
+      `"${(l.source_url || '').replace(/"/g, '""')}"`
+    ];
+    csvRows.push(row.join(','));
+  });
+
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `coreathlete_coaches_${type}_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  closeExportModal();
+  showToast(`Exported ${exportData.length} coach records.`);
+}
+
+function openImportModal() {
+  const modal = document.getElementById('importModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeImportModal() {
+  const modal = document.getElementById('importModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function handleImportPreview() {
+  const text = document.getElementById('importCsvText')?.value.trim();
+  const preview = document.getElementById('importPreviewSummary');
+  if (!text || !preview) return;
+
+  const lines = text.split('\n').filter(l => l.trim().length > 0);
+  preview.style.display = 'block';
+  preview.textContent = `Found ${lines.length - 1} rows. Ready to parse and run through 10-point qualification engine.`;
+}
+
+function handleImportCommit() {
+  const text = document.getElementById('importCsvText')?.value.trim();
+  if (!text) return;
+
+  const lines = text.split('\n').filter(l => l.trim().length > 0);
+  if (lines.length <= 1) {
+    showToast('CSV must have a header row and at least 1 lead row.', true);
+    return;
+  }
+
+  let imported = 0;
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    if (cols.length < 2) continue;
+
+    const candidate = {
+      id: Date.now() + i,
+      name: cols[0] || 'Coach',
+      person_name: cols[0] || 'Coach',
+      niche: cols[1] || 'Strength & Conditioning',
+      social_channel: cols[2] || 'Instagram',
+      social_handle: cols[3] || 'Unknown',
+      city_country: cols[4] || 'India',
+      coaching_software: cols[5] || 'None',
+      outreach_status: '⏳ Not Contacted'
+    };
+
+    const qual = calculate10PointScore(candidate);
+    candidate.qualification_score = qual.score;
+    candidate.qualification_tier = qual.tier;
+    candidate.reason_for_score = qual.reason_for_score;
+    state.leads.unshift(candidate);
+    imported++;
+  }
+
+  persistVaultEdits();
+  closeImportModal();
+  computeAndRenderDashboard();
+  applyFilters();
+  showToast(`Imported ${imported} coach candidates.`);
+}
+
+// ================= ANALYTICS =================
+function renderAnalytics() {
+  const scoreBox = document.getElementById('analyticsScoreBreakdown');
+  const nicheBox = document.getElementById('analyticsNicheBreakdown');
+  const channelBox = document.getElementById('analyticsChannelBreakdown');
+  const softwareBox = document.getElementById('analyticsSoftwareBreakdown');
+
+  if (!scoreBox) return;
+
+  const tierCounts = {
+    'HOT PROSPECT (8–10)': state.leads.filter(l => l.qualification_tier === 'HOT PROSPECT').length,
+    'QUALIFIED (6–7)': state.leads.filter(l => l.qualification_tier === 'QUALIFIED').length,
+    'POTENTIAL (4–5)': state.leads.filter(l => l.qualification_tier === 'POTENTIAL').length,
+    'DISQUALIFIED (<4)': state.leads.filter(l => l.qualification_tier === 'DISQUALIFIED').length
+  };
+
+  scoreBox.innerHTML = Object.entries(tierCounts).map(([tier, count]) => `
+    <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;">
+      <span>${tier}</span>
+      <span style="font-weight: 700; color: var(--lime); font-family: 'JetBrains Mono', monospace;">${count}</span>
+    </div>
+  `).join('');
+
+  const nicheCounts = {};
+  state.leads.forEach(l => {
+    const n = l.niche || 'Other';
+    nicheCounts[n] = (nicheCounts[n] || 0) + 1;
+  });
+
+  if (nicheBox) {
+    nicheBox.innerHTML = Object.entries(nicheCounts).map(([n, count]) => `
+      <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;">
+        <span>${escapeHtml(n)}</span>
+        <span style="font-weight: 700; color: #38bdf8; font-family: 'JetBrains Mono', monospace;">${count}</span>
+      </div>
+    `).join('');
+  }
+
+  const channelCounts = {};
+  state.leads.forEach(l => {
+    const c = l.social_channel || 'Unknown';
+    channelCounts[c] = (channelCounts[c] || 0) + 1;
+  });
+
+  if (channelBox) {
+    channelBox.innerHTML = Object.entries(channelCounts).map(([c, count]) => `
+      <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;">
+        <span>${escapeHtml(c)}</span>
+        <span style="font-weight: 700; color: #a78bfa; font-family: 'JetBrains Mono', monospace;">${count}</span>
+      </div>
+    `).join('');
+  }
+
+  const softwareCounts = {};
+  state.leads.forEach(l => {
+    const s = l.coaching_software || 'None';
+    softwareCounts[s] = (softwareCounts[s] || 0) + 1;
+  });
+
+  if (softwareBox) {
+    softwareBox.innerHTML = Object.entries(softwareCounts).map(([s, count]) => `
+      <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;">
+        <span>${escapeHtml(s)}</span>
+        <span style="font-weight: 700; color: #34d399; font-family: 'JetBrains Mono', monospace;">${count}</span>
+      </div>
+    `).join('');
+  }
+}
+
+// ================= LIFECYCLE EVENT LISTENERS =================
+window.addEventListener('DOMContentLoaded', () => {
   checkSessionOnLoad();
 });
